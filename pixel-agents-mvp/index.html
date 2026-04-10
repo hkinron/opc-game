@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚡ Pixel Agents MVP</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1a2e;display:flex;flex-direction:column;align-items:center;min-height:100vh;font-family:'Courier New',monospace;color:#e0e0e0;overflow:hidden}
+#header{display:flex;align-items:center;justify-content:space-between;width:100%;padding:8px 16px;background:#16213e;border-bottom:2px solid #0f3460;z-index:10}
+#header h1{font-size:18px;color:#e94560}
+#header h1 span{color:#fff}
+#controls{display:flex;gap:8px}
+#controls button{background:#0f3460;color:#e0e0e0;border:1px solid #533483;padding:6px 12px;border-radius:4px;cursor:pointer;font-family:inherit;font-size:12px;transition:all .2s}
+#controls button:hover{background:#533483;border-color:#e94560}
+#game-container{position:relative;flex:1;display:flex;justify-content:center;align-items:center;width:100%}
+canvas{image-rendering:pixelated;image-rendering:crisp-edges;border:2px solid #0f3460}
+#status-bar{position:fixed;bottom:0;left:0;right:0;background:#16213e;border-top:2px solid #0f3460;padding:6px 16px;font-size:12px;display:flex;gap:20px;z-index:10;flex-wrap:wrap}
+.agent-status{display:flex;align-items:center;gap:6px}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#4ade80}
+.status-dot.idle{background:#94a3b8}
+.status-dot.working{background:#4ade80}
+.status-dot.waiting{background:#fbbf24}
+.status-dot.error{background:#ef4444}
+#tooltip{position:fixed;background:#16213eee;border:1px solid #533483;border-radius:6px;padding:8px 12px;font-size:12px;pointer-events:none;display:none;z-index:100;max-width:200px}
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>⚡ <span>Pixel Agents</span></h1>
+  <div id="controls">
+    <button id="btn-add">+ Add Agent</button>
+    <button id="btn-reset">🔄 Reset</button>
+  </div>
+</div>
+<div id="game-container"><canvas id="game"></canvas></div>
+<div id="status-bar"></div>
+<div id="tooltip"></div>
+<script>
+// ============================================================
+// Pixel Agents MVP — Zero dependencies, pure Canvas + JS
+// ============================================================
+
+// --- Tile Types ---
+const TileType = { Floor:0, Wall:1, Desk:2, Plant:3, Couch:4, Whiteboard:5, Bookshelf:6, Printer:7, Coffee:8 };
+
+const TILE_COLORS = {
+  [TileType.Floor]:'#4a4a6a',[TileType.Wall]:'#2a2a3e',[TileType.Desk]:'#8b6914',
+  [TileType.Plant]:'#2d5a27',[TileType.Couch]:'#8b3a3a',[TileType.Whiteboard]:'#e8e8f0',
+  [TileType.Bookshelf]:'#5c3a1e',[TileType.Printer]:'#666677',[TileType.Coffee]:'#a0724a',
+};
+const TILE_WALKABLE = {
+  [TileType.Floor]:true,[TileType.Wall]:false,[TileType.Desk]:false,
+  [TileType.Plant]:false,[TileType.Couch]:false,[TileType.Whiteboard]:false,
+  [TileType.Bookshelf]:false,[TileType.Printer]:false,[TileType.Coffee]:false,
+};
+
+// --- Agent States & Roles ---
+const AgentState = { Idle:'idle', Walking:'walking', Typing:'typing', Reading:'reading', Waiting:'waiting', Error:'error' };
+const AgentRole = { Coder:'Coder', Reviewer:'Reviewer', Designer:'Designer', Writer:'Writer', Tester:'Tester' };
+const ROLE_COLORS = {
+  Coder:{body:'#4a90d9',accent:'#7ab5ff'},Reviewer:{body:'#d94a4a',accent:'#ff7a7a'},
+  Designer:{body:'#d9a94a',accent:'#ffd97a'},Writer:{body:'#4ad97a',accent:'#7affa9'},
+  Tester:{body:'#a94ad9',accent:'#d97aff'},
+};
+const ROLE_EMOJI = { Coder:'💻', Reviewer:'🔍', Designer:'🎨', Writer:'📝', Tester:'🧪' };
+
+// --- Tile Map ---
+class TileMap {
+  constructor(w, h) { this.w = w; this.h = h; this.tiles = []; this.generate(); }
+
+  generate() {
+    this.tiles = [];
+    for (let y = 0; y < this.h; y++) {
+      const row = [];
+      for (let x = 0; x < this.w; x++) {
+        row.push((y===0||y===this.h-1||x===0||x===this.w-1) ? TileType.Wall : TileType.Floor);
+      }
+      this.tiles.push(row);
+    }
+    // Desks
+    [[3,3],[6,3],[9,3],[3,7],[6,7],[9,7]].forEach(([x,y]) => this.set(x,y,TileType.Desk));
+    // Furniture
+    this.set(4,5,TileType.Plant); this.set(7,5,TileType.Coffee); this.set(10,5,TileType.Plant);
+    this.set(1,5,TileType.Couch); this.set(2,5,TileType.Couch);
+    this.set(1,1,TileType.Whiteboard); this.set(2,1,TileType.Whiteboard);
+    this.set(10,1,TileType.Bookshelf); this.set(11,1,TileType.Bookshelf);
+    this.set(10,9,TileType.Printer);
+  }
+
+  set(x,y,t){ if(x>=0&&x<this.w&&y>=0&&y<this.h) this.tiles[y][x]=t; }
+  walkable(x,y){ return x>=0&&x<this.w&&y>=0&&y<this.h&&TILE_WALKABLE[this.tiles[y][x]]; }
+}
+
+// --- BFS Pathfinding ---
+function findPath(map, sx, sy, ex, ey) {
+  if (!map.walkable(ex, ey)) return null;
+  const visited = new Set();
+  const queue = [{x:sx,y:sy,path:[{x:sx,y:sy}]}];
+  visited.add(sx+','+sy);
+  const dirs = [{dx:0,dy:-1},{dx:0,dy:1},{dx:-1,dy:0},{dx:1,dy:0}];
+  while (queue.length > 0) {
+    const {x,y,path} = queue.shift();
+    if (x===ex && y===ey) return path;
+    for (const {dx,dy} of dirs) {
+      const nx=x+dx, ny=y+dy, key=nx+','+ny;
+      if (!visited.has(key) && map.walkable(nx,ny)) {
+        visited.add(key);
+        queue.push({x:nx,y:ny,path:[...path,{x:nx,y:ny}]});
+      }
+    }
+  }
+  return null;
+}
+
+// --- Agent ---
+let agentIdCounter = 0;
+class Agent {
+  constructor(name, role, deskX, deskY, map) {
+    this.id = ++agentIdCounter;
+    this.name = name; this.role = role;
+    this.deskX = deskX; this.deskY = deskY;
+    this.x = deskX; this.y = deskY + 1;
+    this.state = AgentState.Idle;
+    this.path = []; this.pathIdx = 0;
+    this.animFrame = 0; this.animTimer = 0; this.moveTimer = 0; this.stateTimer = 0;
+    this.speech = null; this.speechTimer = 0;
+    this.facing = 'down'; this.bob = 0;
+  }
+
+  update(dt, map) {
+    this.animTimer += dt; this.stateTimer += dt;
+    this.speechTimer -= dt; if (this.speechTimer <= 0) this.speech = null;
+    this.bob = Math.sin(this.animTimer * 3) * 0.5;
+
+    switch (this.state) {
+      case AgentState.Idle:
+        this.animFrame = 0; break;
+      case AgentState.Walking:
+        this.moveTimer += dt;
+        if (this.moveTimer > 0.15) {
+          this.moveTimer = 0; this.pathIdx++;
+          if (this.pathIdx < this.path.length) {
+            const n = this.path[this.pathIdx];
+            const dx = n.x-this.x, dy = n.y-this.y;
+            if (dx>0) this.facing='right'; else if(dx<0) this.facing='left';
+            else if(dy>0) this.facing='down'; else if(dy<0) this.facing='up';
+            this.x = n.x; this.y = n.y;
+            this.animFrame = (this.animFrame+1)%4;
+          } else { this.state=AgentState.Typing; this.stateTimer=0; }
+        }
+        break;
+      case AgentState.Typing:
+        this.animFrame = Math.floor(this.animTimer*12)%4;
+        if (this.stateTimer > 3+Math.random()*5) { this.state=AgentState.Idle; this.stateTimer=0; }
+        break;
+      case AgentState.Reading:
+        this.animFrame = Math.floor(this.animTimer*3)%2;
+        if (this.stateTimer > 2+Math.random()*4) { this.state=AgentState.Typing; this.stateTimer=0; }
+        break;
+      case AgentState.Waiting:
+        this.animFrame = 0;
+        if (this.stateTimer > 1.5) { this.speech='⏳ Waiting...'; this.stateTimer=0; }
+        if (this.stateTimer > 3) { this.state=AgentState.Typing; this.stateTimer=0; this.speech=null; }
+        break;
+      case AgentState.Error:
+        this.animFrame = Math.floor(this.animTimer*4)%2;
+        if (this.stateTimer > 4) { this.state=AgentState.Idle; this.stateTimer=0; }
+        break;
+    }
+  }
+
+  walkTo(tx, ty, map) {
+    const path = findPath(map, Math.round(this.x), Math.round(this.y), tx, ty);
+    if (path && path.length > 1) { this.path=path; this.pathIdx=0; this.state=AgentState.Walking; this.moveTimer=0; }
+  }
+
+  setState(s) { this.state=s; this.stateTimer=0; }
+}
+
+// --- Renderer ---
+class Renderer {
+  constructor(canvas, map) {
+    this.canvas = canvas; this.map = map; this.ctx = canvas.getContext('2d');
+    this.ts = 32; this.resize();
+  }
+
+  resize() {
+    const hH = 44, sH = 34;
+    const aW = window.innerWidth, aH = window.innerHeight - hH - sH;
+    this.ts = Math.max(16, Math.min(40, Math.floor(Math.min(aW/this.map.w, aH/this.map.h))));
+    const w = this.map.w * this.ts, h = this.map.h * this.ts;
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = w*dpr; this.canvas.height = h*dpr;
+    this.canvas.style.width = w+'px'; this.canvas.style.height = h+'px';
+    this.ctx = this.canvas.getContext('2d');
+    this.ctx.scale(dpr,dpr); this.ctx.imageSmoothingEnabled = false;
+  }
+
+  render(agents, time) {
+    const ctx = this.ctx, ts = this.ts;
+    // Draw tiles
+    for (let y=0;y<this.map.h;y++) {
+      for (let x=0;x<this.map.w;x++) {
+        const t = this.map.tiles[y][x], px=x*ts, py=y*ts;
+        ctx.fillStyle = TILE_COLORS[t]; ctx.fillRect(px,py,ts,ts);
+
+        if (t===TileType.Floor) {
+          ctx.fillStyle = 'rgba(255,255,255,0.03)';
+          if ((x+y)%2===0) ctx.fillRect(px,py,ts,ts);
+          ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.strokeRect(px,py,ts,ts);
+        }
+        if (t===TileType.Wall) {
+          ctx.fillStyle='rgba(255,255,255,0.1)'; ctx.fillRect(px,py,ts,2);
+          ctx.fillStyle='rgba(0,0,0,0.2)'; ctx.fillRect(px,py+ts-2,ts,2);
+        }
+        if (t===TileType.Desk) this.drawDesk(px,py,ts);
+        if (t===TileType.Plant) this.drawPlant(px,py,ts,time);
+        if (t===TileType.Couch) this.drawCouch(px,py,ts);
+        if (t===TileType.Whiteboard) this.drawWhiteboard(px,py,ts);
+        if (t===TileType.Bookshelf) this.drawBookshelf(px,py,ts);
+        if (t===TileType.Printer) this.drawPrinter(px,py,ts,time);
+        if (t===TileType.Coffee) this.drawCoffee(px,py,ts,time);
+      }
+    }
+    // Draw agents (sorted by Y)
+    [...agents].sort((a,b)=>a.y-b.y).forEach(a => this.drawAgent(a, ts));
+  }
+
+  drawDesk(x,y,ts){
+    const c=this.ctx;
+    c.fillStyle='#a07820'; c.fillRect(x+2,y+4,ts-4,ts-8);
+    c.fillStyle='#6b5010'; c.fillRect(x+3,y+ts-6,3,4); c.fillRect(x+ts-6,y+ts-6,3,4);
+    c.fillStyle='#333'; c.fillRect(x+ts/2-4,y+6,8,6);
+    c.fillStyle='#5599cc'; c.fillRect(x+ts/2-3,y+7,6,4);
+    c.fillStyle='rgba(85,153,204,0.3)'; c.fillRect(x+ts/2-4,y+5,8,8);
+  }
+  drawPlant(x,y,ts,t){
+    const c=this.ctx, sway=Math.sin(t*2);
+    c.fillStyle='#8b4513'; c.fillRect(x+ts/2-4,y+ts-10,8,8);
+    c.fillStyle='#3a8a2a'; c.fillRect(x+ts/2-2+sway,y+6,4,ts-16);
+    c.fillStyle='#4aaa3a'; c.fillRect(x+ts/2-5+sway,y+4,4,6); c.fillRect(x+ts/2+1+sway,y+2,4,8);
+  }
+  drawCouch(x,y,ts){
+    const c=this.ctx;
+    c.fillStyle='#a04040'; c.fillRect(x+2,y+ts/2-4,ts-4,ts/2-2);
+    c.fillStyle='#8b3a3a'; c.fillRect(x+2,y+ts/2+2,ts-4,4);
+    c.fillStyle='#b05050'; c.fillRect(x+4,y+ts/2-2,ts/2-6,ts/2-6); c.fillRect(x+ts/2+2,y+ts/2-2,ts/2-6,ts/2-6);
+  }
+  drawWhiteboard(x,y,ts){
+    const c=this.ctx;
+    c.fillStyle='#d0d0e0'; c.fillRect(x+2,y+2,ts-4,ts-4);
+    c.fillStyle='#e8e8f0'; c.fillRect(x+4,y+4,ts-8,ts-8);
+    c.fillStyle='#333'; c.fillRect(x+6,y+8,ts-14,2); c.fillRect(x+6,y+13,ts-20,2); c.fillRect(x+6,y+18,ts-16,2);
+  }
+  drawBookshelf(x,y,ts){
+    const c=this.ctx;
+    c.fillStyle='#4a2a10'; c.fillRect(x+2,y+2,ts-4,ts-4);
+    c.fillStyle='#5c3a1e'; c.fillRect(x+3,y+ts/2-1,ts-6,2);
+    ['#d94a4a','#4a90d9','#d9a94a','#4ad97a','#a94ad9'].forEach((cl,i)=>{
+      c.fillStyle=cl; c.fillRect(x+4+i*6,y+4,4,ts/2-6);
+    });
+    ['#4a90d9','#d9a94a','#4ad97a'].forEach((cl,i)=>{
+      c.fillStyle=cl; c.fillRect(x+4+i*7,y+ts/2+1,5,ts/2-7);
+    });
+  }
+  drawPrinter(x,y,ts,t){
+    const c=this.ctx;
+    c.fillStyle='#555'; c.fillRect(x+4,y+8,ts-8,ts-12);
+    c.fillStyle='#666'; c.fillRect(x+6,y+10,ts-12,6);
+    if(Math.sin(t*0.5)>0){c.fillStyle='#fff'; c.fillRect(x+ts/2-3,y+ts-8,6,6);}
+  }
+  drawCoffee(x,y,ts,t){
+    const c=this.ctx;
+    c.fillStyle='#8b6914'; c.fillRect(x+6,y+ts/2,ts-12,ts/2-4);
+    c.fillStyle='#f0f0f0'; c.fillRect(x+ts/2-3,y+ts/2+2,6,6);
+    c.fillStyle='rgba(255,255,255,0.4)';
+    const sy=y+ts/2+Math.sin(t*3)*2;
+    c.fillRect(x+ts/2-2,sy,1,4); c.fillRect(x+ts/2+1,sy+1,1,3);
+  }
+
+  drawAgent(a, ts) {
+    const ctx = this.ctx;
+    const px = a.x*ts + ts/2, py = a.y*ts + ts/2 + a.bob;
+    const col = ROLE_COLORS[a.role];
+
+    // Shadow
+    ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath();
+    ctx.ellipse(px, py+ts/2-2, ts/3, ts/6, 0, 0, Math.PI*2); ctx.fill();
+
+    // Body
+    ctx.fillStyle = col.body;
+    const bw=ts/2.5, bh=ts/2.5;
+    ctx.fillRect(px-bw, py-bh/2, bw*2, bh);
+
+    // Head
+    ctx.fillStyle='#e8c39e';
+    const hs=ts/3.5;
+    ctx.fillRect(px-hs, py-hs*2, hs*2, hs*2);
+
+    // Hair
+    ctx.fillStyle='#444'; ctx.fillRect(px-hs, py-hs*2, hs*2, 3);
+
+    // Eyes
+    ctx.fillStyle='#333';
+    const ex = a.facing==='left'?-2 : a.facing==='right'?2 : 0;
+    ctx.fillRect(px-3+ex, py-hs-1, 2, 2); ctx.fillRect(px+1+ex, py-hs-1, 2, 2);
+
+    // Activity visuals
+    switch(a.state) {
+      case AgentState.Typing:
+        ctx.fillStyle=col.accent;
+        const ao=Math.sin(a.animFrame*Math.PI/2)*3;
+        ctx.fillRect(px-bw-2, py-2+ao, 3, 6); ctx.fillRect(px+bw-1, py-2-ao, 3, 6);
+        break;
+      case AgentState.Walking:
+        ctx.fillStyle='#335';
+        const lo=Math.sin(a.animFrame*Math.PI/2)*3;
+        ctx.fillRect(px-3, py+bh/2, 3, 4+lo); ctx.fillRect(px, py+bh/2, 3, 4-lo);
+        break;
+      case AgentState.Reading:
+        ctx.strokeStyle='#333'; ctx.lineWidth=1;
+        ctx.strokeRect(px-5, py-hs-2, 4, 3); ctx.strokeRect(px+1, py-hs-2, 4, 3);
+        break;
+      case AgentState.Waiting:
+        ctx.fillStyle='#fbbf24'; ctx.font=`${ts/2}px monospace`; ctx.textAlign='center';
+        ctx.fillText('?', px, py-hs*2-4);
+        break;
+      case AgentState.Error:
+        ctx.fillStyle='#ef4444'; ctx.font=`${ts/2}px monospace`; ctx.textAlign='center';
+        ctx.fillText('!', px, py-hs*2-4);
+        break;
+    }
+
+    // Name
+    ctx.fillStyle='#fff'; ctx.font='8px monospace'; ctx.textAlign='center';
+    ctx.fillText(a.name, px, py+bh/2+12);
+
+    // State emoji
+    const emoji = {idle:'😴',walking:'🚶',typing:'⌨️',reading:'📖',waiting:'⏳',error:'❌'};
+    ctx.font='10px sans-serif'; ctx.fillText(emoji[a.state], px, py-hs*2-8);
+
+    // Speech bubble
+    if (a.speech) {
+      ctx.font='10px monospace';
+      const tw=ctx.measureText(a.speech).width+12, th=18;
+      ctx.fillStyle='#fff'; ctx.beginPath();
+      ctx.roundRect(px-tw/2, py-hs*3-20-th, tw, th, 4); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(px-4, py-hs*3-20); ctx.lineTo(px, py-hs*3-14); ctx.lineTo(px+4, py-hs*3-20); ctx.fill();
+      ctx.fillStyle='#333'; ctx.fillText(a.speech, px, py-hs*3-20-6);
+    }
+  }
+}
+
+// --- Game ---
+class Game {
+  constructor() {
+    this.canvas = document.getElementById('game');
+    this.statusBar = document.getElementById('status-bar');
+    this.tooltip = document.getElementById('tooltip');
+    this.map = new TileMap(13, 11);
+    this.renderer = new Renderer(this.canvas, this.map);
+    this.agents = [];
+    this.running = false; this.lastTime = 0; this.simTimer = 0; this.nextIdx = 0;
+
+    this.deskSpots = [[3,3],[6,3],[9,3],[3,7],[6,7],[9,7]];
+    this.agentNames = ['Alice','Bob','Carol','Dave','Eve','Frank'];
+    this.agentRoles = [AgentRole.Coder,AgentRole.Reviewer,AgentRole.Designer,AgentRole.Writer,AgentRole.Tester,AgentRole.Coder];
+
+    this.setupInteraction();
+  }
+
+  start() {
+    this.addAgent(); this.addAgent(); this.addAgent();
+    this.running = true; this.lastTime = performance.now();
+    this.loop();
+  }
+
+  loop = () => {
+    if (!this.running) return;
+    const now = performance.now();
+    const dt = Math.min((now-this.lastTime)/1000, 0.1);
+    this.lastTime = now;
+    this.update(dt);
+    this.renderer.render(this.agents, now/1000);
+    this.updateStatusBar();
+    requestAnimationFrame(this.loop);
+  }
+
+  update(dt) {
+    this.agents.forEach(a => a.update(dt, this.map));
+    this.simTimer += dt;
+    if (this.simTimer > 2) { this.simTimer = 0; this.simulate(); }
+  }
+
+  simulate() {
+    if (this.agents.length===0) return;
+    const a = this.agents[Math.floor(Math.random()*this.agents.length)];
+    if (a.state===AgentState.Idle||a.state===AgentState.Typing||a.state===AgentState.Reading) {
+      const r = Math.random();
+      if (r<0.4) a.setState(AgentState.Typing);
+      else if (r<0.6) a.setState(AgentState.Reading);
+      else if (r<0.75) {
+        a.setState(AgentState.Waiting);
+        a.speech='🤔 Need review...'; a.speechTimer=5;
+      } else if (r<0.85) {
+        a.setState(AgentState.Error);
+        a.speech='💥 Build failed!'; a.speechTimer=4;
+      } else {
+        const spot = this.deskSpots[Math.floor(Math.random()*this.deskSpots.length)];
+        const wx = Math.max(1, Math.min(spot[0]+Math.floor(Math.random()*3)-1, this.map.w-2));
+        const wy = Math.max(1, Math.min(spot[1]+Math.floor(Math.random()*3)-1, this.map.h-2));
+        if (this.map.walkable(wx,wy)) a.walkTo(wx, wy, this.map);
+      }
+    }
+  }
+
+  addAgent() {
+    if (this.nextIdx >= this.deskSpots.length) return;
+    const [dx,dy] = this.deskSpots[this.nextIdx];
+    const a = new Agent(this.agentNames[this.nextIdx], this.agentRoles[this.nextIdx], dx, dy, this.map);
+    this.agents.push(a); this.nextIdx++;
+  }
+
+  reset() {
+    this.agents = []; this.nextIdx = 0; this.simTimer = 0;
+    this.addAgent(); this.addAgent(); this.addAgent();
+  }
+
+  updateStatusBar() {
+    const emoji = {idle:'😴',typing:'⌨️',walking:'🚶',reading:'📖',waiting:'⏳',error:'❌'};
+    this.statusBar.innerHTML = this.agents.map(a => {
+      const sc = a.state===AgentState.Typing||a.state===AgentState.Reading?'working'
+        : a.state===AgentState.Waiting?'waiting' : a.state===AgentState.Error?'error' : 'idle';
+      return `<div class="agent-status"><span class="status-dot ${sc}"></span><span>${a.role}</span><span>${emoji[a.state]}</span><span>${a.name}</span></div>`;
+    }).join('');
+  }
+
+  setupInteraction() {
+    window.addEventListener('resize', () => this.renderer.resize());
+
+    this.canvas.addEventListener('click', e => {
+      const rect = this.canvas.getBoundingClientRect();
+      const tx = Math.floor((e.clientX-rect.left)/this.renderer.ts);
+      const ty = Math.floor((e.clientY-rect.top)/this.renderer.ts);
+      for (const a of this.agents) {
+        if (Math.round(a.x)===tx && Math.round(a.y)===ty) {
+          const states = [AgentState.Typing,AgentState.Reading,AgentState.Waiting,AgentState.Idle];
+          a.setState(states[(states.indexOf(a.state)+1)%states.length]);
+          break;
+        }
+      }
+    });
+
+    this.canvas.addEventListener('mousemove', e => {
+      const rect = this.canvas.getBoundingClientRect();
+      const tx = Math.floor((e.clientX-rect.left)/this.renderer.ts);
+      const ty = Math.floor((e.clientY-rect.top)/this.renderer.ts);
+      let found = false;
+      for (const a of this.agents) {
+        if (Math.round(a.x)===tx && Math.round(a.y)===ty) {
+          this.tooltip.style.display='block';
+          this.tooltip.style.left=(e.clientX+12)+'px'; this.tooltip.style.top=(e.clientY+12)+'px';
+          this.tooltip.innerHTML=`<strong>${a.name}</strong><br>Role: ${a.role}<br>State: ${a.state}<br>Pos: (${a.x}, ${a.y})`;
+          found=true; break;
+        }
+      }
+      if (!found) this.tooltip.style.display='none';
+    });
+
+    document.getElementById('btn-add').addEventListener('click', () => this.addAgent());
+    document.getElementById('btn-reset').addEventListener('click', () => this.reset());
+  }
+}
+
+// --- Start ---
+const game = new Game();
+game.start();
+</script>
+</body>
+</html>
