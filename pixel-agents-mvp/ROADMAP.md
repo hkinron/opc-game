@@ -48,33 +48,27 @@ cd pixel-agents && pnpm dev
 
 ## Phase 3: 任务系统 (Kanban) ✅ DONE
 
-### Kanban 板 UI
-- Canvas 渲染的 Kanban 板（TODO / DOING / DONE 三列）
-- 任务卡片显示标题 + 优先级颜色点
-- 半透明卡片 + 边框颜色区分状态 (蓝/黄/绿)
-- 板位于办公室上方墙壁区域 (tile 4-7, row 1)
+### KanbanBoard 组件 (`src/engine/KanbanBoard.ts`)
+- 侧边滑出面板（4 列：Todo / In Progress / Review / Done）
+- 任务卡片：标题 + 优先级徽章 + 负责人
+- 优先级颜色：🔴 high / 🟡 medium / 🟢 low
+- 列头颜色编码：蓝/黄/紫/绿
 
 ### 任务数据模型
-- `Task` 类型: id, title, description, assignee, state, priority
-- 优先级: high/medium/low (排序取任务时优先 high)
-- 6 个默认任务，支持动态添加
+- `Task` 类型: id, title, description, column, assignee, priority, createdAt
+- 6 个默认任务，支持动态添加/移动/分配
 
 ### Agent 自主取任务
-- 空闲 agent 自动走到 Kanban 板前取任务
-- 完整的任务工作流状态机:
-  WalkingToKanban → PickingTask → WalkingToDesk → WorkingOnTask → WalkingToComplete → CompletingTask → WalkingBackToDesk
-- Speech bubble 显示当前操作（"Got: Fix login bug"、"Done: Fix login bug"）
-- Agent 头顶显示当前任务标题
-
-### WebSocket 任务同步
-- `task_change` 事件类型
-- 远程任务状态更新支持
-- KanbanBoard.serialize() / applyRemoteTasks()
+- 空闲 agent 自动从 Todo 列取最高优先级任务
+- 取任务动画：走到看板区域 → 回到工位 → 开始工作
+- 完成任务后自动移到 Review 列
+- Speech bubble 显示任务名和进度
 
 ### 交互
-- 点击空闲 agent 分配任务
-- 状态栏显示完成进度 (📋 2/6 done)
-- 悬浮 tooltip 显示任务详情
+- 📋 Kanban 按钮切换侧边面板
+- 点击 agent 切换状态
+- 状态栏显示任务统计 (todo→progress→review→done)
+- Tooltip 显示 agent 当前任务详情
 
 ## Phase 4: 视觉升级
 - [ ] Sprite sheet 动画系统
