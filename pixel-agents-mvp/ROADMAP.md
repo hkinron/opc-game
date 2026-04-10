@@ -1,12 +1,14 @@
 # Pixel Agents — 开发路线图
 
-## 当前状态 (2026-04-10 16:05)
+## 当前状态 (2026-04-10 16:07)
 - ✅ MVP v0.1: 单文件 HTML，Canvas 渲染，模拟 agent 动画
 - ✅ Phase 1: TypeScript 工程化重构
 - ✅ Phase 2: WebSocket 实时同步
 - ✅ Phase 3: Kanban 任务板
-- ✅ Phase 4: 视觉升级 (粒子系统 + 精灵渲染)
+- ✅ Phase 4: 视觉升级 (动画 + 精灵 + 粒子 + 音效)
+- 🔜 Phase 5: 平台化 (API + 插件 + 主题 + 桌面版)
 - 代码: `pixel-agents/`
+- 构建: 16 模块 → 36.5KB (gzip 11.6KB)
 
 ## Phase 1: 工程化重构 ✅ DONE
 - TypeScript 多模块项目，Vite 构建
@@ -72,15 +74,14 @@ cd pixel-agents && pnpm dev
 
 ## Phase 4: 视觉升级 ✅ DONE
 
-### 粒子系统 (`src/engine/ParticleSystem.ts`)
-- 5 种粒子类型: spark, float, burst, steam, code
-- 灵活的 emit API: 颜色/方向/速度/生命周期/扩散角度
-- 物理模拟: 重力 (spark/burst), 上浮 (steam/code), 减速 (code)
-- Code 粒子: 渲染为代码片段字符 (0, 1, {, }, </>, ;, fn, =>)
+### 动画系统 (`src/engine/AnimationSystem.ts`)
+- Animator 类: 多动画管理, 状态驱动切换
+- 5 套预定义动画: idle, walking, typing, reading, error
+- 帧循环 + 时间控制, 支持 loop/once 模式
 
 ### 精灵渲染器 (`src/engine/SpriteRenderer.ts`)
 - 16x20 像素程序化精灵 (无需外部资源)
-- 5 种角色专属外观:
+- 5 种角色专属皮肤:
   - Coder: 蓝色衬衫 + 眼镜
   - Reviewer: 红色衬衫 + 放大镜
   - Designer: 黄色衬衫 + 调色板 + 长发
@@ -89,17 +90,32 @@ cd pixel-agents && pnpm dev
 - 动态动画: 行走腿部摆动, 打字手臂运动, 角色专属配件动画
 - 状态指示器: 键盘发光 (typing), 红色闪烁 (error)
 
+### 粒子系统 (`src/engine/ParticleSystem.ts`)
+- 5 种粒子类型: spark, float, burst, steam, code
+- 灵活的 emit API: 颜色/方向/速度/生命周期/扩散角度
+- 物理模拟: 重力 (spark/burst), 上浮 (steam/code), 减速 (code)
+- Code 粒子: 渲染为代码片段字符 (0, 1, {, }, </>, ;, fn, =>)
+- 环境粒子: 咖啡蒸汽持续飘散
+
+### 音效系统 (`src/engine/SoundSystem.ts`)
+- Web Audio API 程序化音效 (零外部资源)
+- 打字声: 短促点击音 (per-key 频率随机)
+- 脚步声: 柔和低沉
+- 完成音效: C-E-G-C 上行和弦
+- 错误音效: 刺耳蜂鸣
+- 任务拾取: 叮叮双音
+- 音量控制 + 静音切换
+
 ### 环境粒子效果
 - 打字: 代码字符上浮 + 角色色火花飞溅
 - 行走: 脚部灰尘粒子
 - 错误: 红色爆炸粒子
 - 取任务: 金色闪光粒子
-- 咖啡机: 蒸汽粒子持续飘散
 
-### 构建: 15 模块 → 32.1KB (gzip 10.6KB)
+### 构建: 16 模块 → 36.5KB (gzip 11.6KB)
 
-## Phase 5: 平台化
-- [ ] 开放 API
-- [ ] 插件系统
-- [ ] 主题商店
+## Phase 5: 平台化 (NEXT)
+- [ ] 开放 API (REST + WebSocket)
+- [ ] 插件系统 (自定义 agent 皮肤 + 行为)
+- [ ] 主题商店 (换肤/地图)
 - [ ] Electron 桌面版
