@@ -7,16 +7,16 @@ export interface Task {
   title: string;
   description: string;
   column: 'todo' | 'in_progress' | 'review' | 'done';
+  state: 'todo' | 'doing' | 'done'; // alias for Renderer compatibility
   assignee: string | null;
   priority: 'low' | 'medium' | 'high';
   createdAt: number;
 }
 
-export const TASK_COLORS: Record<Task['column'], string> = {
-  todo: '#4a90d9',
-  in_progress: '#d9a94a',
-  review: '#a94ad9',
-  done: '#4ad97a',
+export const TASK_COLORS: Record<string, { bg: string; border: string }> = {
+  todo: { bg: '#4a90d9', border: '#3b82f6' },
+  doing: { bg: '#d9a94a', border: '#f59e0b' },
+  done: { bg: '#4ad97a', border: '#22c55e' },
 };
 
 export const PRIORITY_COLORS: Record<Task['priority'], string> = {
@@ -57,6 +57,22 @@ export class KanbanBoard {
     this.hide();
   }
 
+  // ============================================
+  // Tile position (for in-canvas rendering)
+  // ============================================
+  getTileX(): number { return 4; }
+  getTileY(): number { return 1; }
+  getTileWidth(): number { return 4; }
+
+  // ============================================
+  // Task management
+  // ============================================
+
+  /** Get all tasks (alias for Renderer compatibility) */
+  getTasks(): Task[] {
+    return this.tasks;
+  }
+
   toggle(): void {
     this.visible ? this.hide() : this.show();
   }
@@ -76,6 +92,7 @@ export class KanbanBoard {
     const task: Task = {
       id, title, description,
       column: 'todo',
+      state: 'todo',
       assignee: null,
       priority,
       createdAt: Date.now(),
@@ -89,7 +106,10 @@ export class KanbanBoard {
     const task = this.tasks.find(t => t.id === taskId);
     if (task) {
       task.column = column;
-      if (column === 'done') task.assignee = null;
+      // Update state alias
+      if (column === 'in_progress') task.state = 'doing';
+      else if (column === 'done') { task.state = 'done'; task.assignee = null; }
+      else task.state = 'todo';
       this.render();
     }
   }
@@ -99,6 +119,7 @@ export class KanbanBoard {
     if (task && !task.assignee) {
       task.assignee = agentName;
       task.column = 'in_progress';
+      task.state = 'doing';
       this.render();
     }
   }
@@ -143,7 +164,7 @@ export class KanbanBoard {
       <div style="flex: 1; overflow-y: auto; padding: 8px;">
         ${columns.map(col => `
           <div style="margin-bottom: 12px;">
-            <div style="color: ${TASK_COLORS[col]}; font-size: 12px; font-weight: bold; margin-bottom: 6px; padding: 0 4px;">
+            <div style="color: #94a3b8; font-size: 12px; font-weight: bold; margin-bottom: 6px; padding: 0 4px;">
               ${columnLabels[col]} (${this.getTasksByColumn(col).length})
             </div>
             ${this.getTasksByColumn(col).map(task => this.renderTaskCard(task)).join('')}
@@ -159,7 +180,7 @@ export class KanbanBoard {
     return `
       <div class="task-card" data-task-id="${task.id}" style="
         background: #0f3460;
-        border-left: 3px solid ${TASK_COLORS[task.column]};
+        border-left: 3px solid #94a3b8;
         border-radius: 4px;
         padding: 8px;
         margin-bottom: 6px;

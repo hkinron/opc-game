@@ -9,7 +9,7 @@ const AGENT_NAMES = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve', 'Frank'];
 const AGENT_ROLES: AgentRole[] = [AgentRole.Coder, AgentRole.Reviewer, AgentRole.Designer, AgentRole.Writer, AgentRole.Tester, AgentRole.Coder];
 const DESK_SPOTS = [{ x: 3, y: 3 }, { x: 6, y: 3 }, { x: 9, y: 3 }, { x: 3, y: 7 }, { x: 6, y: 7 }, { x: 9, y: 7 }];
 
-const KANBAN_POSITION = { x: 1, y: 1 }; // Top-left area of the office
+const KANBAN_POSITION = { x: 1, y: 1 };
 
 export class Game {
   private tileMap: TileMap;
@@ -28,7 +28,10 @@ export class Game {
   private wsAgentMap: Map<string, Agent> = new Map();
   private connectionIndicator: HTMLElement | null = null;
   private kanban: KanbanBoard;
-  private agentTasks: Map<string, string> = new Map(); // agentName -> taskId
+  private agentTasks: Map<string, string> = new Map();
+
+  // Completion tracking for sound effects
+  private completedTasks: Set<string> = new Set();
 
   constructor(canvas: HTMLCanvasElement, statusBar: HTMLElement, tooltip: HTMLElement, wsUrl?: string) {
     this.canvas = canvas;
@@ -140,6 +143,13 @@ export class Game {
   private update(dt: number): void {
     for (const agent of this.agents) agent.update(dt, this.tileMap);
 
+    // Sound effects — check per agent
+    const sounds = this.renderer.getSoundSystem();
+    for (const agent of this.agents) {
+      if (agent.shouldPlayTypingSound(dt)) sounds.playTyping();
+      if (agent.shouldPlayFootstepSound()) sounds.playFootstep();
+    }
+
     // Task assignment logic (every 5 seconds in sim mode)
     if (this.useSimulation) {
       this.taskTimer += dt;
@@ -155,11 +165,13 @@ export class Game {
       }
     }
 
-    // Check if agents completed their tasks
+    // Check if agents completed their tasks (play completion chime)
     for (const agent of this.agents) {
       if (agent.state === AgentState.Idle) {
         const taskId = this.agentTasks.get(agent.config.name);
-        if (taskId) {
+        if (taskId && !this.completedTasks.has(taskId)) {
+          this.completedTasks.add(taskId);
+          sounds.playCompletion();
           this.kanban.moveTask(taskId, 'review');
           agent.speechBubble = `✅ Done! Moving to review`;
           agent.speechTimer = 4;
@@ -180,10 +192,12 @@ export class Game {
           agent.speechBubble = `📋 Taking: ${task.title}`;
           agent.speechTimer = 5;
 
+          // Play task pickup sound
+          this.renderer.getSoundSystem().playTaskPickup();
+
           // Walk to Kanban board area, then back to desk
           agent.walkTo(KANBAN_POSITION.x, KANBAN_POSITION.y, this.tileMap);
 
-          // After picking up task, walk back to desk and start working
           setTimeout(() => {
             if (agent.state !== AgentState.Walking) {
               agent.walkTo(agent.config.deskX, agent.config.deskY + 1, this.tileMap);
@@ -202,7 +216,6 @@ export class Game {
   private simulateAgentActivity(): void {
     if (this.agents.length === 0) return;
 
-    // Agents with tasks are "typing"
     for (const agent of this.agents) {
       if (this.agentTasks.has(agent.config.name) && agent.state === AgentState.Idle) {
         agent.setState(AgentState.Typing);
@@ -210,14 +223,12 @@ export class Game {
         if (task) agent.speechBubble = `💻 ${task.title}`;
         agent.speechTimer = 8;
       } else if (this.agentTasks.has(agent.config.name) && agent.state === AgentState.Typing) {
-        // Randomly finish task
         if (Math.random() < 0.15) {
           agent.setState(AgentState.Idle);
         }
       }
     }
 
-    // Idle agents without tasks do random stuff
     for (const agent of this.agents) {
       if (!this.agentTasks.has(agent.config.name) && (agent.state === AgentState.Idle || agent.state === AgentState.Typing || agent.state === AgentState.Reading)) {
         const rand = Math.random();
@@ -245,11 +256,17 @@ export class Game {
     this.simTimer = 0;
     this.taskTimer = 0;
     this.agentTasks.clear();
+    this.completedTasks.clear();
     this.addAgent(); this.addAgent(); this.addAgent();
   }
 
   toggleKanban(): void {
     this.kanban.toggle();
+  }
+
+  toggleSound(): boolean {
+    const sounds = this.renderer.getSoundSystem();
+    return sounds.toggle();
   }
 
   private updateStatusBar(): void {
@@ -267,13 +284,19 @@ export class Game {
   }
 
   private setupInteraction(): void {
+    // Enable audio on first click (browser autoplay policy)
+    const enableAudio = () => {
+      this.renderer.getSoundSystem().resume();
+      document.removeEventListener('click', enableAudio);
+    };
+    document.addEventListener('click', enableAudio);
+
     window.addEventListener('resize', () => this.renderer.resize(this.canvas));
     this.canvas.addEventListener('click', e => {
       const rect = this.canvas.getBoundingClientRect();
       const tx = Math.floor((e.clientX - rect.left) / this.renderer.tileSize);
       const ty = Math.floor((e.clientY - rect.top) / this.renderer.tileSize);
 
-      // Check if clicked on agent
       for (const a of this.agents) {
         if (Math.round(a.x) === tx && Math.round(a.y) === ty) {
           const states = [AgentState.Typing, AgentState.Reading, AgentState.Waiting, AgentState.Idle];
@@ -312,5 +335,10 @@ export class Game {
     document.getElementById('btn-add')?.addEventListener('click', () => this.addAgent());
     document.getElementById('btn-reset')?.addEventListener('click', () => this.reset());
     document.getElementById('btn-kanban')?.addEventListener('click', () => this.toggleKanban());
+    document.getElementById('btn-sound')?.addEventListener('click', () => {
+      const enabled = this.toggleSound();
+      const btn = document.getElementById('btn-sound');
+      if (btn) btn.textContent = enabled ? '🔊 Sound' : '🔇 Muted';
+    });
   }
 }
