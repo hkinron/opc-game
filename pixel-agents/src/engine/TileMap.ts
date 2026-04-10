@@ -10,7 +10,11 @@ export const TILE_CONFIG: Record<TileType, TileConfig> = {
   [TileType.Bookshelf]:  { name: 'Bookshelf',  color: '#5c3a1e', walkable: false },
   [TileType.Printer]:    { name: 'Printer',    color: '#666677', walkable: false },
   [TileType.Coffee]:     { name: 'Coffee',     color: '#a0724a', walkable: false },
+  [TileType.Kanban]:     { name: 'Kanban',     color: '#3a3a5e', borderColor: '#5a5a8e', walkable: false },
 };
+
+// Kanban board position (tile coords)
+export const KANBAN_BOARD = { x: 4, y: 1, width: 4 };
 
 export class TileMap {
   tiles: TileType[][];
@@ -47,6 +51,11 @@ export class TileMap {
       if (this.inBounds(pos.x, pos.y)) {
         this.tiles[pos.y][pos.x] = TileType.Desk;
       }
+    }
+
+    // Kanban board on top wall (center)
+    for (let x = KANBAN_BOARD.x; x < KANBAN_BOARD.x + KANBAN_BOARD.width; x++) {
+      this.setIf(x, KANBAN_BOARD.y, TileType.Kanban);
     }
 
     // Furniture

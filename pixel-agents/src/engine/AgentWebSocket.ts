@@ -2,12 +2,16 @@
 
 export interface AgentEvent {
   agentId: string;
-  type: 'state_change' | 'file_write' | 'file_read' | 'command' | 'error' | 'waiting';
+  type: 'state_change' | 'file_write' | 'file_read' | 'command' | 'error' | 'waiting' | 'task_change';
   state?: 'idle' | 'walking' | 'typing' | 'reading' | 'waiting' | 'error';
   file?: string;
   command?: string;
   message?: string;
   timestamp: number;
+  // Task-related fields
+  taskId?: string;
+  taskState?: 'todo' | 'doing' | 'done';
+  assignee?: string | null;
 }
 
 export type EventHandler = (event: AgentEvent) => void;
@@ -76,5 +80,15 @@ export class AgentWebSocket {
 
   isConnected(): boolean {
     return this.connected;
+  }
+
+  send(data: any): void {
+    if (this.ws && this.connected) {
+      this.ws.send(JSON.stringify(data));
+    }
+  }
+
+  sendEvent(event: AgentEvent): void {
+    this.send({ type: 'event', data: event });
   }
 }

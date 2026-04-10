@@ -1,6 +1,6 @@
-import { AgentConfig, AgentState, AgentRole } from '../types';
-import { TileMap } from './TileMap';
-import { findPath, PathNode } from './BFS';
+import { AgentConfig, AgentState, AgentRole, Task, PathNode } from '../types';
+import { TileMap, KANBAN_BOARD } from './TileMap';
+import { findPath } from './BFS';
 
 export const ROLE_COLORS: Record<AgentRole, { body: string; accent: string }> = {
   Coder:    { body: '#4a90d9', accent: '#7ab5ff' },
@@ -9,6 +9,18 @@ export const ROLE_COLORS: Record<AgentRole, { body: string; accent: string }> = 
   Writer:   { body: '#4ad97a', accent: '#7affa9' },
   Tester:   { body: '#a94ad9', accent: '#d97aff' },
 };
+
+// Sub-states for task workflow
+export enum TaskWorkflow {
+  None = 'none',
+  WalkingToKanban = 'walking_to_kanban',
+  PickingTask = 'picking_task',
+  WalkingToDesk = 'walking_to_desk',
+  WorkingOnTask = 'working_on_task',
+  WalkingToComplete = 'walking_to_complete',
+  CompletingTask = 'completing_task',
+  WalkingBackToDesk = 'walking_back_to_desk',
+}
 
 export class Agent {
   config: AgentConfig;
@@ -27,6 +39,11 @@ export class Agent {
   bobOffset: number = 0;
   id: number;
 
+  // Task-related fields
+  currentTask: Task | null = null;
+  taskWorkflow: TaskWorkflow = TaskWorkflow.None;
+  private map: TileMap | null = null;
+
   private static nextId = 1;
 
   constructor(config: AgentConfig, map: TileMap) {
@@ -35,9 +52,11 @@ export class Agent {
     this.x = config.deskX;
     this.y = config.deskY + 1;
     this.state = AgentState.Idle;
+    this.map = map;
   }
 
   update(dt: number, map: TileMap): void {
+    this.map = map; // keep reference updated
     this.animTimer += dt;
     this.stateTimer += dt;
     this.speechTimer -= dt;
@@ -66,8 +85,7 @@ export class Agent {
             this.y = next.y;
             this.animFrame = (this.animFrame + 1) % 4;
           } else {
-            this.state = AgentState.Typing;
-            this.stateTimer = 0;
+            this.onArrived();
           }
         }
         break;
@@ -75,8 +93,12 @@ export class Agent {
       case AgentState.Typing:
         this.animFrame = Math.floor(this.animTimer * 12) % 4;
         if (this.stateTimer > 3 + Math.random() * 5) {
-          this.state = AgentState.Idle;
-          this.stateTimer = 0;
+          if (this.taskWorkflow === TaskWorkflow.WorkingOnTask && this.currentTask) {
+            this.startCompleteTask();
+          } else {
+            this.state = AgentState.Idle;
+            this.stateTimer = 0;
+          }
         }
         break;
 
@@ -108,13 +130,82 @@ export class Agent {
           this.stateTimer = 0;
         }
         break;
+
+      case AgentState.FetchingTask:
+        this.animFrame = 0;
+        break;
     }
 
     this.bobOffset = Math.sin(this.animTimer * 3) * 0.5;
   }
 
-  walkTo(tx: number, ty: number, map: TileMap): void {
-    const path = findPath(map, Math.round(this.x), Math.round(this.y), tx, ty);
+  private onArrived(): void {
+    switch (this.taskWorkflow) {
+      case TaskWorkflow.WalkingToKanban:
+        this.taskWorkflow = TaskWorkflow.PickingTask;
+        this.state = AgentState.FetchingTask;
+        this.stateTimer = 0;
+        this.speechBubble = `📋 Got: ${this.currentTask?.title || 'task'}`;
+        this.speechTimer = 3;
+        setTimeout(() => {
+          if (this.currentTask) {
+            this.walkTo(this.config.deskX, this.config.deskY + 1);
+            this.taskWorkflow = TaskWorkflow.WalkingToDesk;
+          }
+        }, 800);
+        break;
+
+      case TaskWorkflow.WalkingToDesk:
+        this.taskWorkflow = TaskWorkflow.WorkingOnTask;
+        this.state = AgentState.Typing;
+        this.stateTimer = 0;
+        this.speechBubble = `💻 ${this.currentTask?.title}`;
+        this.speechTimer = 5;
+        break;
+
+      case TaskWorkflow.WalkingToComplete:
+        this.taskWorkflow = TaskWorkflow.CompletingTask;
+        this.state = AgentState.FetchingTask;
+        this.stateTimer = 0;
+        this.speechBubble = `✅ Done: ${this.currentTask?.title}`;
+        this.speechTimer = 3;
+        setTimeout(() => {
+          this.walkTo(this.config.deskX, this.config.deskY + 1);
+          this.taskWorkflow = TaskWorkflow.WalkingBackToDesk;
+        }, 800);
+        break;
+
+      case TaskWorkflow.WalkingBackToDesk:
+        this.taskWorkflow = TaskWorkflow.None;
+        this.currentTask = null;
+        this.state = AgentState.Idle;
+        this.stateTimer = 0;
+        this.speechBubble = '🎉 Task done!';
+        this.speechTimer = 3;
+        break;
+
+      default:
+        this.state = AgentState.Idle;
+        this.stateTimer = 0;
+        break;
+    }
+  }
+
+  startFetchTask(task: Task): void {
+    this.currentTask = task;
+    this.taskWorkflow = TaskWorkflow.WalkingToKanban;
+    this.walkTo(KANBAN_BOARD.x + 1, KANBAN_BOARD.y + 1);
+  }
+
+  startCompleteTask(): void {
+    if (!this.currentTask) return;
+    this.taskWorkflow = TaskWorkflow.WalkingToComplete;
+    this.walkTo(KANBAN_BOARD.x + 2, KANBAN_BOARD.y + 1);
+  }
+
+  walkTo(tx: number, ty: number): void {
+    if (!this.map) return;
+    const path = findPath(this.map, Math.round(this.x), Math.round(this.y), tx, ty);
     if (path && path.length > 1) {
       this.path = path;
       this.pathIndex = 0;
@@ -126,5 +217,9 @@ export class Agent {
   setState(state: AgentState): void {
     this.state = state;
     this.stateTimer = 0;
+  }
+
+  isAvailable(): boolean {
+    return this.state === AgentState.Idle && this.currentTask === null;
   }
 }
