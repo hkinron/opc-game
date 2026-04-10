@@ -44,6 +44,10 @@ export class Agent {
   taskWorkflow: TaskWorkflow = TaskWorkflow.None;
   private map: TileMap | null = null;
 
+  // Sound effect timers (rate limiting)
+  private typingSoundTimer: number = 0;
+  private footstepSoundTimer: number = 0;
+
   private static nextId = 1;
 
   constructor(config: AgentConfig, map: TileMap) {
@@ -56,10 +60,12 @@ export class Agent {
   }
 
   update(dt: number, map: TileMap): void {
-    this.map = map; // keep reference updated
+    this.map = map;
     this.animTimer += dt;
     this.stateTimer += dt;
     this.speechTimer -= dt;
+    this.typingSoundTimer -= dt;
+    this.footstepSoundTimer -= dt;
     if (this.speechTimer <= 0) this.speechBubble = null;
 
     switch (this.state) {
@@ -84,6 +90,7 @@ export class Agent {
             this.x = next.x;
             this.y = next.y;
             this.animFrame = (this.animFrame + 1) % 4;
+            this.footstepSoundTimer = 0; // reset to play footstep
           } else {
             this.onArrived();
           }
@@ -149,7 +156,7 @@ export class Agent {
         this.speechTimer = 3;
         setTimeout(() => {
           if (this.currentTask) {
-            this.walkTo(this.config.deskX, this.config.deskY + 1);
+            this.walkTo(this.config.deskX, this.config.deskY + 1, this.map!);
             this.taskWorkflow = TaskWorkflow.WalkingToDesk;
           }
         }, 800);
@@ -170,7 +177,7 @@ export class Agent {
         this.speechBubble = `✅ Done: ${this.currentTask?.title}`;
         this.speechTimer = 3;
         setTimeout(() => {
-          this.walkTo(this.config.deskX, this.config.deskY + 1);
+          this.walkTo(this.config.deskX, this.config.deskY + 1, this.map!);
           this.taskWorkflow = TaskWorkflow.WalkingBackToDesk;
         }, 800);
         break;
@@ -194,18 +201,17 @@ export class Agent {
   startFetchTask(task: Task): void {
     this.currentTask = task;
     this.taskWorkflow = TaskWorkflow.WalkingToKanban;
-    this.walkTo(KANBAN_BOARD.x + 1, KANBAN_BOARD.y + 1);
+    this.walkTo(KANBAN_BOARD.x + 1, KANBAN_BOARD.y + 1, this.map!);
   }
 
   startCompleteTask(): void {
     if (!this.currentTask) return;
     this.taskWorkflow = TaskWorkflow.WalkingToComplete;
-    this.walkTo(KANBAN_BOARD.x + 2, KANBAN_BOARD.y + 1);
+    this.walkTo(KANBAN_BOARD.x + 2, KANBAN_BOARD.y + 1, this.map!);
   }
 
-  walkTo(tx: number, ty: number): void {
-    if (!this.map) return;
-    const path = findPath(this.map, Math.round(this.x), Math.round(this.y), tx, ty);
+  walkTo(tx: number, ty: number, map: TileMap): void {
+    const path = findPath(map, Math.round(this.x), Math.round(this.y), tx, ty);
     if (path && path.length > 1) {
       this.path = path;
       this.pathIndex = 0;
@@ -221,5 +227,24 @@ export class Agent {
 
   isAvailable(): boolean {
     return this.state === AgentState.Idle && this.currentTask === null;
+  }
+
+  /** Whether typing sound should play this frame */
+  shouldPlayTypingSound(dt: number): boolean {
+    this.typingSoundTimer -= dt;
+    if (this.state === AgentState.Typing && this.typingSoundTimer <= 0) {
+      this.typingSoundTimer = 0.15 + Math.random() * 0.1;
+      return true;
+    }
+    return false;
+  }
+
+  /** Whether footstep sound should play this frame */
+  shouldPlayFootstepSound(): boolean {
+    if (this.state === AgentState.Walking && this.footstepSoundTimer <= 0) {
+      this.footstepSoundTimer = 0.15;
+      return true;
+    }
+    return false;
   }
 }

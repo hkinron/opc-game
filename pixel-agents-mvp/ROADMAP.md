@@ -1,12 +1,12 @@
 # Pixel Agents — 开发路线图
 
-## 当前状态 (2026-04-10 15:24)
+## 当前状态 (2026-04-10 16:05)
 - ✅ MVP v0.1: 单文件 HTML，Canvas 渲染，模拟 agent 动画
-- ✅ Phase 1 完成: TypeScript 工程化重构，Vite 构建
-- ✅ Phase 2 完成: WebSocket 实时同步 + JSONL 日志解析
-- ✅ Phase 3 完成: Kanban 任务板系统
-- 代码: `pixel-agents/` (主项目), `pixel-agents/server/` (后端服务)
-- 文档: `pixel-agents-mvp/docs/uml.md`
+- ✅ Phase 1: TypeScript 工程化重构
+- ✅ Phase 2: WebSocket 实时同步
+- ✅ Phase 3: Kanban 任务板
+- ✅ Phase 4: 视觉升级 (粒子系统 + 精灵渲染)
+- 代码: `pixel-agents/`
 
 ## Phase 1: 工程化重构 ✅ DONE
 - TypeScript 多模块项目，Vite 构建
@@ -70,12 +70,33 @@ cd pixel-agents && pnpm dev
 - 状态栏显示任务统计 (todo→progress→review→done)
 - Tooltip 显示 agent 当前任务详情
 
-## Phase 4: 视觉升级
-- [ ] Sprite sheet 动画系统
-- [ ] 自定义角色皮肤
-- [ ] 多房间支持
-- [ ] 粒子效果 (敲代码冒火花等)
-- [ ] 音效
+## Phase 4: 视觉升级 ✅ DONE
+
+### 粒子系统 (`src/engine/ParticleSystem.ts`)
+- 5 种粒子类型: spark, float, burst, steam, code
+- 灵活的 emit API: 颜色/方向/速度/生命周期/扩散角度
+- 物理模拟: 重力 (spark/burst), 上浮 (steam/code), 减速 (code)
+- Code 粒子: 渲染为代码片段字符 (0, 1, {, }, </>, ;, fn, =>)
+
+### 精灵渲染器 (`src/engine/SpriteRenderer.ts`)
+- 16x20 像素程序化精灵 (无需外部资源)
+- 5 种角色专属外观:
+  - Coder: 蓝色衬衫 + 眼镜
+  - Reviewer: 红色衬衫 + 放大镜
+  - Designer: 黄色衬衫 + 调色板 + 长发
+  - Writer: 绿色衬衫 + 钢笔 + 短卷发
+  - Tester: 紫色衬衫 + 虫子图标
+- 动态动画: 行走腿部摆动, 打字手臂运动, 角色专属配件动画
+- 状态指示器: 键盘发光 (typing), 红色闪烁 (error)
+
+### 环境粒子效果
+- 打字: 代码字符上浮 + 角色色火花飞溅
+- 行走: 脚部灰尘粒子
+- 错误: 红色爆炸粒子
+- 取任务: 金色闪光粒子
+- 咖啡机: 蒸汽粒子持续飘散
+
+### 构建: 15 模块 → 32.1KB (gzip 10.6KB)
 
 ## Phase 5: 平台化
 - [ ] 开放 API
