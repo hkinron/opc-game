@@ -1,0 +1,13 @@
+{
+  "name": "pixel-agents-server",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "ws": "^8.20.0"
+  }
+}
