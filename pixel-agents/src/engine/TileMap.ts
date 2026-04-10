@@ -13,22 +13,26 @@ export const TILE_CONFIG: Record<TileType, TileConfig> = {
   [TileType.Kanban]:     { name: 'Kanban',     color: '#3a3a5e', borderColor: '#5a5a8e', walkable: false },
 };
 
-// Kanban board position (tile coords)
 export const KANBAN_BOARD = { x: 4, y: 1, width: 4 };
+
+const FURNITURE_MAP: Record<string, TileType> = {
+  plant: TileType.Plant, couch: TileType.Couch, whiteboard: TileType.Whiteboard,
+  bookshelf: TileType.Bookshelf, printer: TileType.Printer, coffee: TileType.Coffee,
+};
 
 export class TileMap {
   tiles: TileType[][];
   readonly width: number;
   readonly height: number;
 
-  constructor(width: number, height: number) {
+  constructor(width: number, height: number, furniture?: { type: string; x: number; y: number }[]) {
     this.width = width;
     this.height = height;
     this.tiles = [];
-    this.generateDefaultLayout();
+    this.generateLayout(furniture);
   }
 
-  generateDefaultLayout(): void {
+  generateLayout(furniture?: { type: string; x: number; y: number }[]): void {
     this.tiles = [];
     for (let y = 0; y < this.height; y++) {
       const row: TileType[] = [];
@@ -42,33 +46,18 @@ export class TileMap {
       this.tiles.push(row);
     }
 
-    // Place desks in rows
-    const deskPositions = [
-      { x: 3, y: 3 }, { x: 6, y: 3 }, { x: 9, y: 3 },
-      { x: 3, y: 7 }, { x: 6, y: 7 }, { x: 9, y: 7 },
-    ];
-    for (const pos of deskPositions) {
-      if (this.inBounds(pos.x, pos.y)) {
-        this.tiles[pos.y][pos.x] = TileType.Desk;
+    if (furniture) {
+      for (const item of furniture) {
+        const tileType = FURNITURE_MAP[item.type];
+        if (tileType !== undefined) this.setIf(item.x, item.y, tileType);
       }
+    } else {
+      this.setIf(4, 5, TileType.Plant); this.setIf(7, 5, TileType.Coffee);
+      this.setIf(10, 5, TileType.Plant); this.setIf(1, 5, TileType.Couch);
+      this.setIf(2, 5, TileType.Couch); this.setIf(1, 1, TileType.Whiteboard);
+      this.setIf(2, 1, TileType.Whiteboard); this.setIf(10, 1, TileType.Bookshelf);
+      this.setIf(11, 1, TileType.Bookshelf); this.setIf(10, 9, TileType.Printer);
     }
-
-    // Kanban board on top wall (center)
-    for (let x = KANBAN_BOARD.x; x < KANBAN_BOARD.x + KANBAN_BOARD.width; x++) {
-      this.setIf(x, KANBAN_BOARD.y, TileType.Kanban);
-    }
-
-    // Furniture
-    this.setIf(4, 5, TileType.Plant);
-    this.setIf(7, 5, TileType.Coffee);
-    this.setIf(10, 5, TileType.Plant);
-    this.setIf(1, 5, TileType.Couch);
-    this.setIf(2, 5, TileType.Couch);
-    this.setIf(1, 1, TileType.Whiteboard);
-    this.setIf(2, 1, TileType.Whiteboard);
-    this.setIf(10, 1, TileType.Bookshelf);
-    this.setIf(11, 1, TileType.Bookshelf);
-    this.setIf(10, 9, TileType.Printer);
   }
 
   setIf(x: number, y: number, type: TileType): void {

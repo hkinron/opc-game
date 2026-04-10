@@ -3,13 +3,20 @@ import { Agent } from './Agent';
 import { Renderer } from './Renderer';
 import { AgentWebSocket, AgentEvent } from './AgentWebSocket';
 import { KanbanBoard } from './KanbanBoard';
+import { ConfigManager } from './ConfigSystem';
 import { AgentConfig, AgentRole, AgentState } from '../types';
 
 const AGENT_NAMES = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve', 'Frank'];
 const AGENT_ROLES: AgentRole[] = [AgentRole.Coder, AgentRole.Reviewer, AgentRole.Designer, AgentRole.Writer, AgentRole.Tester, AgentRole.Coder];
-const DESK_SPOTS = [{ x: 3, y: 3 }, { x: 6, y: 3 }, { x: 9, y: 3 }, { x: 3, y: 7 }, { x: 6, y: 7 }, { x: 9, y: 7 }];
 
 const KANBAN_POSITION = { x: 1, y: 1 };
+
+export interface GameOptions {
+  wsUrl?: string;
+  theme?: string;
+  layout?: string;
+  skins?: string;
+}
 
 export class Game {
   private tileMap: TileMap;
@@ -28,22 +35,33 @@ export class Game {
   private wsAgentMap: Map<string, Agent> = new Map();
   private connectionIndicator: HTMLElement | null = null;
   private kanban: KanbanBoard;
+  private config: ConfigManager;
+  private deskSpots: { x: number; y: number }[];
   private agentTasks: Map<string, string> = new Map();
 
   // Completion tracking for sound effects
   private completedTasks: Set<string> = new Set();
 
-  constructor(canvas: HTMLCanvasElement, statusBar: HTMLElement, tooltip: HTMLElement, wsUrl?: string) {
+  constructor(canvas: HTMLCanvasElement, statusBar: HTMLElement, tooltip: HTMLElement, options: GameOptions = {}) {
     this.canvas = canvas;
     this.statusBar = statusBar;
     this.tooltip = tooltip;
-    this.tileMap = new TileMap(13, 11);
-    this.renderer = new Renderer(canvas, this.tileMap);
+    this.config = new ConfigManager();
+
+    // Apply config from query params
+    if (options.theme) this.config.setTheme(options.theme);
+    if (options.layout) this.config.setLayout(options.layout);
+    if (options.skins) this.config.setSkins(options.skins);
+
+    const layout = this.config.getLayout();
+    this.deskSpots = layout.desks;
+    this.tileMap = new TileMap(layout.width, layout.height, layout.furniture);
+    this.renderer = new Renderer(canvas, this.tileMap, this.config.getTheme());
     this.kanban = new KanbanBoard();
     this.setupDefaultTasks();
     this.setupInteraction();
 
-    if (wsUrl) this.connectWebSocket(wsUrl);
+    if (options.wsUrl) this.connectWebSocket(options.wsUrl);
   }
 
   private setupDefaultTasks(): void {
@@ -86,8 +104,8 @@ export class Game {
 
   private handleAgentEvent(event: AgentEvent): void {
     let agent = this.wsAgentMap.get(event.agentId);
-    if (!agent && this.nextAgentIndex < DESK_SPOTS.length) {
-      const spot = DESK_SPOTS[this.nextAgentIndex];
+    if (!agent && this.nextAgentIndex < this.deskSpots.length) {
+      const spot = this.deskSpots[this.nextAgentIndex];
       const config: AgentConfig = {
         name: event.agentId || AGENT_NAMES[this.nextAgentIndex],
         role: AGENT_ROLES[this.nextAgentIndex],
@@ -239,8 +257,8 @@ export class Game {
   }
 
   addAgent(): void {
-    if (this.nextAgentIndex >= DESK_SPOTS.length) return;
-    const spot = DESK_SPOTS[this.nextAgentIndex];
+    if (this.nextAgentIndex >= this.deskSpots.length) return;
+    const spot = this.deskSpots[this.nextAgentIndex];
     const config: AgentConfig = {
       name: AGENT_NAMES[this.nextAgentIndex],
       role: AGENT_ROLES[this.nextAgentIndex],

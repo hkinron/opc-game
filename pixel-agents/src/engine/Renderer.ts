@@ -3,6 +3,7 @@ import { Agent, ROLE_COLORS } from './Agent';
 import { SpriteRenderer } from './SpriteRenderer';
 import { ParticleSystem } from './ParticleSystem';
 import { SoundSystem } from './SoundSystem';
+import { ThemeColors } from './ConfigSystem';
 import { TileType, AgentState } from '../types';
 import { KanbanBoard, TASK_COLORS, PRIORITY_COLORS } from './KanbanBoard';
 
@@ -12,11 +13,20 @@ export class Renderer {
   private kanbanBoard: KanbanBoard | null = null;
   private particles: ParticleSystem;
   private sounds: SoundSystem;
+  private theme: ThemeColors;
   tileSize: number = 32;
 
-  constructor(canvas: HTMLCanvasElement, tileMap: TileMap) {
+  constructor(canvas: HTMLCanvasElement, tileMap: TileMap, theme?: ThemeColors) {
     this.ctx = canvas.getContext('2d')!;
     this.tileMap = tileMap;
+    this.theme = theme || {
+      background: '#1a1a2e', wall: '#2a2a3e', wallHighlight: 'rgba(255,255,255,0.1)',
+      wallShadow: 'rgba(0,0,0,0.2)', floor: '#4a4a6a', floorPattern: 'rgba(255,255,255,0.03)',
+      floorGrid: 'rgba(255,255,255,0.05)', desk: '#8b6914', deskTop: '#a07820',
+      deskLeg: '#6b5010', monitor: '#333', monitorScreen: '#5599cc', accent: '#e94560',
+      text: '#e0e0e0', textMuted: '#94a3b8', header: '#16213e', headerBorder: '#0f3460',
+      statusbar: '#16213e', statusbarBorder: '#0f3460',
+    };
     this.particles = new ParticleSystem(this.ctx);
     this.sounds = new SoundSystem();
     this.resize(canvas);

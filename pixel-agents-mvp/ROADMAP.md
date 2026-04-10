@@ -1,14 +1,10 @@
 # Pixel Agents — 开发路线图
 
-## 当前状态 (2026-04-10 16:07)
-- ✅ MVP v0.1: 单文件 HTML，Canvas 渲染，模拟 agent 动画
-- ✅ Phase 1: TypeScript 工程化重构
-- ✅ Phase 2: WebSocket 实时同步
-- ✅ Phase 3: Kanban 任务板
-- ✅ Phase 4: 视觉升级 (动画 + 精灵 + 粒子 + 音效)
-- 🔜 Phase 5: 平台化 (API + 插件 + 主题 + 桌面版)
+## 当前状态 (2026-04-10 16:35)
+- ✅ MVP → Phase 5 全部完成
 - 代码: `pixel-agents/`
-- 构建: 16 模块 → 36.5KB (gzip 11.6KB)
+- 构建: 17 模块 → 40.7KB (gzip 12.7KB)
+- 下一步: 部署到 GitHub Pages
 
 ## Phase 1: 工程化重构 ✅ DONE
 - TypeScript 多模块项目，Vite 构建
@@ -114,8 +110,37 @@ cd pixel-agents && pnpm dev
 
 ### 构建: 16 模块 → 36.5KB (gzip 11.6KB)
 
-## Phase 5: 平台化 (NEXT)
-- [ ] 开放 API (REST + WebSocket)
-- [ ] 插件系统 (自定义 agent 皮肤 + 行为)
-- [ ] 主题商店 (换肤/地图)
-- [ ] Electron 桌面版
+## Phase 5: 平台化 ✅ DONE
+
+### REST API (`server/src/index.js`)
+- 基于 Node.js http 服务器 + WebSocket 共享端口
+- CORS 支持
+- 端点:
+  - `GET /api/health` — 服务器状态 + 连接数
+  - `GET /api/agents` — 所有 agent 状态列表
+  - `POST /api/agents/:id/state` — 更新 agent 状态
+  - `GET /api/tasks` — 任务历史
+  - `POST /api/tasks` — 添加新任务
+  - `GET /api/events` — 事件历史 (?limit=N)
+  - `POST /api/events` — 推送自定义事件
+  - `GET /api/plugins` — 插件列表
+  - `POST /api/plugins` — 注册插件
+  - `GET /` — API 文档
+
+### 插件系统 (`PluginManager`)
+- 事件钩子系统: `pluginManager.hook('agent_event', handler)`
+- 内置插件: default-theme, default-layout
+- 热注册: POST /api/plugins 动态注册
+
+### 配置系统 (`src/engine/ConfigSystem.ts`)
+- **主题**: default / cyber / sunset (3 套配色)
+- **布局**: Standard Office / Open Plan (2 种地图)
+- **皮肤**: default / pastel (2 套角色配色)
+- URL 参数切换: `?theme=cyber&layout=open-plan&skins=pastel`
+- ConfigManager 类统一管理
+
+### TileMap 重构
+- 支持自定义布局配置
+- 动态家具生成
+
+### 构建: 17 模块 → 40.7KB (gzip 12.7KB)
