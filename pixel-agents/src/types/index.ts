@@ -14,6 +14,16 @@ export enum TileType {
   // 🏢 入口区
   UmbrellaStand = 30, // 雨伞架
   AttendanceMachine = 31, // 打卡机
+  // 📌 公告板
+  BulletinBoard = 32, // 软木公告栏
+  VendingMachine = 33, // 自动售货机
+  // 📞 电话亭
+  PhoneBooth = 34, // 电话亭（透明玻璃小隔间）
+  // 🖥️ 服务器机房
+  ServerRack = 35, // 服务器机柜（带闪烁LED）
+  ServerRoomGlass = 36, // 机房玻璃隔断（半透明）
+  // 🏷️ 区域名牌
+  ZoneLabel = 37, // 地面团队分区标识
 }
 
 export enum AgentState {
@@ -21,6 +31,7 @@ export enum AgentState {
   Reading = 'reading', Waiting = 'waiting', Error = 'error',
   FetchingTask = 'fetching_task',
   摸鱼中 = '摸鱼中',
+  趴桌睡觉 = 'desk_nap',
 }
 
 export enum AgentRole {

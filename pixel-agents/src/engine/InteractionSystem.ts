@@ -62,7 +62,7 @@ export interface Conversation {
 // ==================== Office Object Interactions ====================
 
 export interface InteractableObject {
-  type: 'coffee' | 'couch' | 'whiteboard' | 'bookshelf' | 'printer' | 'plant' | 'desk' | 'microwave' | 'snackbar' | 'meetingtable' | 'restroom' | 'signpost' | 'packagelocker' | 'watercooler' | 'umbrella' | 'attendancemachine';
+  type: 'coffee' | 'couch' | 'whiteboard' | 'bookshelf' | 'printer' | 'plant' | 'desk' | 'microwave' | 'snackbar' | 'meetingtable' | 'restroom' | 'signpost' | 'packagelocker' | 'watercooler' | 'umbrella' | 'attendancemachine' | 'bulletinboard' | 'vendingmachine' | 'phonebooth' | 'serverrack';
   x: number;
   y: number;
   label: string;
@@ -144,6 +144,26 @@ const OBJECT_INTERACTIONS: Record<string, InteractableObject[]> = {
     actionText: '滴！打卡成功！', actionDuration: 3, actionState: AgentState.Typing,
     nearbyTile: { x: 12, y: 11 },
   }],
+  bulletinboard: [{
+    type: 'bulletinboard', x: 5, y: 1, label: '公告栏', emoji: '📌',
+    actionText: '看看有什么通知...', actionDuration: 5, actionState: AgentState.Reading,
+    nearbyTile: { x: 5, y: 2 },
+  }],
+  vendingmachine: [{
+    type: 'vendingmachine', x: 13, y: 8, label: '自动售货机', emoji: '🥤',
+    actionText: '选个饮料...', actionDuration: 5, actionState: AgentState.Waiting,
+    nearbyTile: { x: 12, y: 8 },
+  }],
+  phonebooth: [{
+    type: 'phonebooth', x: 6, y: 11, label: '电话亭', emoji: '📞',
+    actionText: '接电话中...', actionDuration: 8, actionState: AgentState.Waiting,
+    nearbyTile: { x: 5, y: 11 },
+  }],
+  serverrack: [{
+    type: 'serverrack', x: 1, y: 3, label: '服务器机房', emoji: '🖥️',
+    actionText: '紧急修复服务器...', actionDuration: 8, actionState: AgentState.Typing,
+    nearbyTile: { x: 3, y: 3 },
+  }],
 };
 
 export class InteractionSystem {
@@ -161,7 +181,7 @@ export class InteractionSystem {
         const a = agents[i], b = agents[j];
         const dist = Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 
-        if (dist < proximity && a.state !== AgentState.Walking && b.state !== AgentState.Walking) {
+        if (dist < proximity && a.state !== AgentState.Walking && b.state !== AgentState.Walking && a.state !== AgentState.趴桌睡觉 && b.state !== AgentState.趴桌睡觉) {
           // Check if they're already chatting
           const pairKey = [a.id, b.id].sort().join('-');
           const cooldown = this.conversationCooldown.get(pairKey) || 0;

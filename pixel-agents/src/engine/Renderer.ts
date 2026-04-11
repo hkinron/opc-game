@@ -12,6 +12,7 @@ import { DayNightCycle, AtmosphereState, Weather } from './DayNightCycle';
 import { Boss, BossState } from './Boss';
 
 interface OfficeEvent { message: string; timer: number; color: string; flashTimer: number; }
+interface ProjectorBeam { x: number; y: number; targetX: number; targetY: number; active: boolean; timer: number; }
 interface ConfettiParticle { x: number; y: number; vx: number; vy: number; color: string; life: number; size: number; rotation: number; rotSpeed: number; }
 interface RainDrop { x: number; y: number; speed: number; length: number; }
 interface SnowFlake { x: number; y: number; speed: number; drift: number; size: number; }
@@ -34,6 +35,8 @@ export class Renderer {
   private confetti: ConfettiParticle[] = [];
   private rainDrops: RainDrop[] = [];
   private snowFlakes: SnowFlake[] = [];
+  private meetingRoomActive: boolean = false;
+  private meetingAgentCount: number = 0;
 
   constructor(canvas: HTMLCanvasElement, tileMap: TileMap, theme?: ThemeColors) {
     this.ctx = canvas.getContext('2d')!;
@@ -63,6 +66,7 @@ export class Renderer {
   setHoverTile(x: number, y: number): void { this.hoverTile = { x, y }; }
   getSoundSystem(): SoundSystem { return this.sounds; }
   getDayNight(): DayNightCycle { return this.dayNight; }
+  setMeetingRoomActive(active: boolean, agentCount: number): void { this.meetingRoomActive = active; this.meetingAgentCount = agentCount; }
 
   triggerEvent(msg: string, duration: number = 15): void {
     const colors = ['#e74c3c', '#f39c12', '#2ecc71', '#3498db', '#9b59b6', '#e67e22'];
@@ -146,6 +150,12 @@ export class Renderer {
         else if (type === TileType.DeskPhoto) this.drawDeskPhoto(px, py, ts);
         else if (type === TileType.UmbrellaStand) this.drawUmbrellaStand(px, py, ts, time);
         else if (type === TileType.AttendanceMachine) this.drawAttendanceMachine(px, py, ts, time);
+        else if (type === TileType.BulletinBoard) this.drawBulletinBoard(px, py, ts, time);
+        else if (type === TileType.VendingMachine) this.drawVendingMachine(px, py, ts, time);
+      else if (type === TileType.PhoneBooth) this.drawPhoneBooth(px, py, ts, time);
+        else if (type === TileType.ServerRack) this.drawServerRack(px, py, ts, time, tx, ty);
+        else if (type === TileType.ServerRoomGlass) this.drawServerRoomGlass(px, py, ts, time, tx, ty);
+        else if (type === TileType.ZoneLabel) this.drawZoneLabel(px, py, ts, time, tx, ty);
       }
     }
 
@@ -159,6 +169,9 @@ export class Renderer {
         ctx.fillStyle = 'rgba(250,204,21,0.15)'; ctx.fillRect(px - 2, py - 2, ts + 4, ts + 4);
       }
     }
+
+    // 📽️ 会议室投影仪光束
+    this.drawProjectorBeam(ts, time);
 
     // Office cat
     if (this.officeCat) this.drawCat(this.officeCat, ts, time);
@@ -269,7 +282,7 @@ export class Renderer {
     c.strokeRect(x + 0.5, y + 0.5, ts - 1, ts - 1);
   }
 
-  private drawWall(x: number, y: number, ts: number, _tx: number, ty: number): void {
+  private drawWall(x: number, y: number, ts: number, tx: number, ty: number): void {
     const c = this.ctx;
     // Dark wall with subtle depth
     const gradient = c.createLinearGradient(x, y, x, y + ts);
@@ -296,6 +309,74 @@ export class Renderer {
       c.moveTo(x + ts * 3 / 4, y); c.lineTo(x + ts * 3 / 4, y + ts / 2);
     }
     c.stroke();
+
+    // 🧯 消防栓 — 每隔一段距离出现一个
+    if (tx > 0 && tx < this.tileMap.width - 1 && ty === 0 && tx % 6 === 3) {
+      this.drawFireExtinguisher(x, y, ts);
+    }
+    // 🚪 紧急出口标识 — 在墙的特定位置
+    if (tx > 0 && tx < this.tileMap.width - 1 && ty === 0 && tx % 8 === 5) {
+      this.drawExitSign(x, y, ts);
+    }
+    // 📢 励志标语 — 偶尔出现在墙壁上
+    if (tx > 0 && tx < this.tileMap.width - 1 && ty === 0 && tx % 10 === 7) {
+      this.drawMotivationPoster(x, y, ts);
+    }
+  }
+
+  // 🧯 消防栓
+  private drawFireExtinguisher(x: number, y: number, ts: number): void {
+    const c = this.ctx;
+    // 红色箱体
+    c.fillStyle = '#c0392b';
+    c.fillRect(x + ts / 2 - 5, y + 4, 10, ts - 6);
+    c.fillStyle = '#e74c3c';
+    c.fillRect(x + ts / 2 - 4, y + 5, 8, ts - 8);
+    // 灭火器图标
+    c.fillStyle = '#fff';
+    c.font = `${Math.max(8, ts - 16)}px sans-serif`;
+    c.textAlign = 'center';
+    c.fillText('🧯', x + ts / 2, y + ts / 2 + 3);
+  }
+
+  // 🚪 紧急出口标识
+  private drawExitSign(x: number, y: number, ts: number): void {
+    const c = this.ctx;
+    // 绿色背景
+    c.fillStyle = '#1a5c2a';
+    c.fillRect(x + 2, y + ts / 2 - 4, ts - 4, 8);
+    c.fillStyle = '#2ecc71';
+    c.fillRect(x + 3, y + ts / 2 - 3, ts - 6, 6);
+    // 文字
+    c.fillStyle = '#fff';
+    c.font = `bold ${Math.max(6, ts - 18)}px monospace`;
+    c.textAlign = 'center';
+    c.fillText('EXIT →', x + ts / 2, y + ts / 2 + 2);
+  }
+
+  // 📢 励志标语海报
+  private drawMotivationPoster(x: number, y: number, ts: number): void {
+    const c = this.ctx;
+    const posters = [
+      { bg: '#2980b9', text: '加油!', sub: 'FIGHTING' },
+      { bg: '#8e44ad', text: '创新', sub: 'INNOVATE' },
+      { bg: '#d35400', text: '拼搏', sub: 'WORK HARD' },
+      { bg: '#16a085', text: '团队', sub: 'TEAM WORK' },
+    ];
+    const p = posters[Math.floor(x / ts + y) % posters.length];
+    // 海报边框
+    c.fillStyle = '#f5f0e0';
+    c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+    // 海报内容
+    c.fillStyle = p.bg;
+    c.fillRect(x + 3, y + 3, ts - 6, ts - 6);
+    // 文字
+    c.fillStyle = '#fff';
+    c.font = `bold ${Math.max(7, ts - 16)}px sans-serif`;
+    c.textAlign = 'center';
+    c.fillText(p.text, x + ts / 2, y + ts / 2);
+    c.font = `${Math.max(4, ts - 22)}px monospace`;
+    c.fillText(p.sub, x + ts / 2, y + ts / 2 + 7);
   }
 
   private drawDesk(x: number, y: number, ts: number): void {
@@ -442,11 +523,51 @@ export class Renderer {
 
   private drawCoffee(x: number, y: number, ts: number, t: number): void {
     const c = this.ctx;
-    c.fillStyle = '#8b6914'; c.fillRect(x + 6, y + ts / 2, ts - 12, ts / 2 - 4);
-    c.fillStyle = '#f0f0f0'; c.fillRect(x + ts / 2 - 3, y + ts / 2 + 2, 6, 6);
-    c.fillStyle = 'rgba(255,255,255,0.4)';
-    const sy = y + ts / 2 + Math.sin(t * 3) * 2;
-    c.fillRect(x + ts / 2 - 2, sy, 1, 4); c.fillRect(x + ts / 2 + 1, sy + 1, 1, 3);
+    // ☕ 咖啡吧台升级 — 真实咖啡站
+    // 吧台台面（深色木纹）
+    c.fillStyle = '#6b4423';
+    c.fillRect(x + 2, y + ts - 8, ts - 4, 6);
+    c.fillStyle = '#7a5530';
+    c.fillRect(x + 3, y + ts - 7, ts - 6, 2);
+    // 意式咖啡机机身
+    c.fillStyle = '#2c2c2c';
+    c.fillRect(x + 4, y + 4, ts - 12, ts - 12);
+    c.fillStyle = '#3a3a3a';
+    c.fillRect(x + 5, y + 5, ts - 14, ts - 14);
+    // 咖啡机顶部（水箱）
+    c.fillStyle = '#444';
+    c.fillRect(x + 6, y + 3, ts - 16, 4);
+    c.fillStyle = 'rgba(100,180,255,0.3)'; // 水箱里的水
+    c.fillRect(x + 7, y + 4, ts - 20, 2);
+    // 冲煮头 + 手柄
+    c.fillStyle = '#888';
+    c.fillRect(x + ts / 2 - 2, y + ts / 2 + 2, 4, 6);
+    c.fillStyle = '#555';
+    c.fillRect(x + ts / 2 - 5, y + ts / 2 + 4, 10, 3); // 手柄
+    // 杯温器（顶部暖灯效果）
+    c.fillStyle = '#555';
+    c.fillRect(x + 6, y + 7, ts - 16, 2);
+    c.fillStyle = `rgba(255,180,50,${0.2 + Math.sin(t * 2) * 0.1})`; // 暖光
+    c.fillRect(x + 7, y + 8, ts - 18, 1);
+    // 吧台杯子
+    const mugColors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12'];
+    for (let i = 0; i < 3; i++) {
+      const mx = x + 6 + i * 7;
+      c.fillStyle = mugColors[i];
+      c.fillRect(mx, y + ts - 14, 5, 6); // 杯身
+      c.fillStyle = mugColors[i];
+      c.fillRect(mx + 5, y + ts - 13, 2, 4); // 杯把
+    }
+    // 动态蒸汽
+    c.fillStyle = 'rgba(255,255,255,0.15)';
+    for (let i = 0; i < 3; i++) {
+      const sx = x + ts / 2 - 2 + Math.sin(t * 2 + i * 1.5) * 3;
+      const sy = y + 2 - i * 3 + Math.sin(t * 3 + i) * 1;
+      const size = 2 + i;
+      c.globalAlpha = 0.12 - i * 0.03;
+      c.fillRect(sx, sy, size, size);
+    }
+    c.globalAlpha = 1;
   }
 
   private drawWindow(x: number, y: number, ts: number, t: number, atm: AtmosphereState): void {
@@ -599,24 +720,185 @@ export class Renderer {
     for (let i = 0; i < 3; i++) {
       c.beginPath(); c.moveTo(x + 3, y + 6 + i * 6); c.lineTo(x + ts - 3, y + 6 + i * 6); c.stroke();
     }
-    // 椅子 — 用瓦片坐标检查四周
-    c.fillStyle = '#8b4513';
+    // 🪑 办公椅升级 — 靠背 + 坐垫 + 五星轮子底座
     const isNeighbor = (dx: number, dy: number): boolean => {
       const nx = tx + dx, ny = ty + dy;
       return ny >= 0 && ny < map.height && nx >= 0 && nx < map.width && map.tiles[ny][nx] === TileType.MeetingTable;
     };
-    // 上方椅子
-    if (!isNeighbor(0, -1)) c.fillRect(x + ts / 2 - 4, y + 1, 8, 4);
-    // 下方椅子
-    if (!isNeighbor(0, 1)) c.fillRect(x + ts / 2 - 4, y + ts - 5, 8, 4);
-    // 左侧椅子
-    if (!isNeighbor(-1, 0)) c.fillRect(x + 1, y + ts / 2 - 4, 4, 8);
-    // 右侧椅子
-    if (!isNeighbor(1, 0)) c.fillRect(x + ts - 5, y + ts / 2 - 4, 4, 8);
-    // 投影仪光效（桌子中央偶尔闪烁）
-    if (Math.sin(t * 0.7) > 0.8) {
-      c.fillStyle = 'rgba(100,180,255,0.15)';
-      c.fillRect(x + ts / 2 - 2, y + ts / 2 - 2, 4, 4);
+    const drawOfficeChair = (cx: number, cy: number, facing: 'up' | 'down' | 'left' | 'right') => {
+      // 五星轮子底座（中心点 + 5 条辐条）
+      c.fillStyle = '#555';
+      c.fillRect(cx - 1, cy - 1, 2, 2);
+      const spokeLen = 4;
+      for (let i = 0; i < 5; i++) {
+        const angle = (i / 5) * Math.PI * 2 - Math.PI / 2;
+        const sx = Math.cos(angle) * spokeLen;
+        const sy = Math.sin(angle) * spokeLen;
+        c.fillRect(cx + sx - 0.5, cy + sy - 0.5, 1, 1);
+      }
+      // 气压杆
+      c.fillStyle = '#888';
+      c.fillRect(cx - 1, cy - 1, 2, 2);
+      // 坐垫
+      c.fillStyle = '#2c3e50';
+      c.fillRect(cx - 4, cy - 3, 8, 6);
+      c.fillStyle = '#34495e';
+      c.fillRect(cx - 3, cy - 2, 6, 4);
+      // 靠背 — 根据朝向放在不同位置
+      c.fillStyle = '#1a252f';
+      if (facing === 'down') {
+        c.fillRect(cx - 4, cy - 5, 8, 3); // 靠背在上方
+      } else if (facing === 'up') {
+        c.fillRect(cx - 4, cy + 3, 8, 3); // 靠背在下方
+      } else if (facing === 'left') {
+        c.fillRect(cx + 3, cy - 4, 3, 8); // 靠背在右侧
+      } else {
+        c.fillRect(cx - 6, cy - 4, 3, 8); // 靠背在左侧
+      }
+      // 扶手（两侧小突起）
+      c.fillStyle = '#555';
+      if (facing === 'down' || facing === 'up') {
+        c.fillRect(cx - 5, cy - 1, 2, 2);
+        c.fillRect(cx + 3, cy - 1, 2, 2);
+      } else {
+        c.fillRect(cx - 1, cy - 5, 2, 2);
+        c.fillRect(cx - 1, cy + 3, 2, 2);
+      }
+    };
+    // 四把椅子，靠背朝外（远离桌子中心）
+    if (!isNeighbor(0, -1)) drawOfficeChair(x + ts / 2, y + 2, 'up');
+    if (!isNeighbor(0, 1)) drawOfficeChair(x + ts / 2, y + ts - 3, 'down');
+    if (!isNeighbor(-1, 0)) drawOfficeChair(x + 3, y + ts / 2, 'left');
+    if (!isNeighbor(1, 0)) drawOfficeChair(x + ts - 3, y + ts / 2, 'right');
+    // 💻 桌上的笔记本电脑（放在桌子中央，微微打开）
+    const laptopX = x + ts / 2 - 5, laptopY = y + ts / 2 - 3;
+    // 屏幕（半开状态，显示蓝色PPT）
+    c.fillStyle = '#2c3e50'; c.fillRect(laptopX + 1, laptopY, 8, 1); // 屏幕顶部
+    c.fillStyle = '#3498db'; c.fillRect(laptopX + 2, laptopY + 1, 6, 3); // 屏幕内容
+    c.fillStyle = 'rgba(255,255,255,0.4)'; c.fillRect(laptopX + 3, laptopY + 1, 2, 1); // 高光
+    // 键盘底座
+    c.fillStyle = '#7f8c8d'; c.fillRect(laptopX, laptopY + 4, 10, 3);
+    c.fillStyle = '#95a5a6'; c.fillRect(laptopX + 1, laptopY + 5, 8, 1);
+    // 触摸板
+    c.fillStyle = '#bdc3c7'; c.fillRect(laptopX + 3, laptopY + 6, 4, 1);
+    // 投影仪光效（从桌子一端投出光束）
+    if (Math.sin(t * 0.7) > 0.5) {
+      const beamAlpha = 0.05 + Math.sin(t * 0.7) * 0.05;
+      c.fillStyle = `rgba(100,180,255,${beamAlpha})`;
+      c.beginPath();
+      c.moveTo(x + ts / 2, y + 2);
+      c.lineTo(x + ts / 2 - 6, y - 2);
+      c.lineTo(x + ts / 2 + 6, y - 2);
+      c.closePath();
+      c.fill();
+    }
+  }
+
+  // ============================================
+  // 📽️ 会议室投影仪光束 — agents 开会时的视觉效果
+  // ============================================
+  private drawProjectorBeam(ts: number, t: number): void {
+    if (!this.meetingRoomActive || this.meetingAgentCount < 2) return;
+
+    const c = this.ctx;
+    const map = this.tileMap;
+
+    // 会议室区域 (13-18, 1-4)，投影仪在 (17,1) 白板上方的墙上
+    const projX = 17 * ts + ts / 2;
+    const projY = 1 * ts + ts / 2;
+
+    // 投影范围 — 覆盖会议桌区域 (14-16, 2-3)
+    const targetLeft = 13.5 * ts;
+    const targetRight = 16.5 * ts;
+    const targetTop = 1.5 * ts;
+    const targetBottom = 4.5 * ts;
+
+    // 投影仪机身 — 墙上的小方盒
+    c.fillStyle = '#2c3e50';
+    c.fillRect(projX - 4, projY - 3, 8, 6);
+    c.fillStyle = '#34495e';
+    c.fillRect(projX - 3, projY - 2, 6, 4);
+    // 镜头
+    c.fillStyle = '#1a1a2e';
+    c.beginPath();
+    c.arc(projX - 3, projY, 2, 0, Math.PI * 2);
+    c.fill();
+    // 镜头光点
+    c.fillStyle = `rgba(100,180,255,${0.6 + Math.sin(t * 3) * 0.3})`;
+    c.beginPath();
+    c.arc(projX - 4, projY, 1, 0, Math.PI * 2);
+    c.fill();
+
+    // 投影仪光束 — 锥形半透明光
+    const beamAlpha = 0.06 + Math.sin(t * 1.5) * 0.02;
+    const slideHue = (t * 10) % 360; // PPT 颜色缓慢变化
+
+    // 主光束
+    c.fillStyle = `hsla(${slideHue}, 60%, 70%, ${beamAlpha})`;
+    c.beginPath();
+    c.moveTo(projX - 2, projY);
+    c.lineTo(targetLeft, targetTop);
+    c.lineTo(targetRight, targetTop);
+    c.lineTo(targetRight, targetBottom);
+    c.lineTo(targetLeft, targetBottom);
+    c.closePath();
+    c.fill();
+
+    // 光束边缘 — 更明显的边界
+    c.strokeStyle = `hsla(${slideHue}, 60%, 70%, ${beamAlpha * 2})`;
+    c.lineWidth = 1;
+    c.setLineDash([4, 4]);
+    c.beginPath();
+    c.moveTo(projX - 2, projY);
+    c.lineTo(targetLeft, targetTop);
+    c.stroke();
+    c.beginPath();
+    c.moveTo(projX - 2, projY);
+    c.lineTo(targetLeft, targetBottom);
+    c.stroke();
+    c.setLineDash([]);
+
+    // 投影画面内容 — 模拟 PPT 幻灯片
+    const slideW = targetRight - targetLeft;
+    const slideH = targetBottom - targetTop;
+    const slideX = targetLeft + 2;
+    const slideY = targetTop + 2;
+
+    // PPT 背景
+    c.fillStyle = `hsla(${slideHue}, 40%, 85%, 0.15)`;
+    c.fillRect(slideX, slideY, slideW - 4, slideH - 4);
+
+    // PPT 标题栏
+    c.fillStyle = `hsla(${slideHue}, 50%, 40%, 0.25)`;
+    c.fillRect(slideX, slideY, slideW - 4, slideH * 0.2);
+
+    // 标题文字（模拟）
+    c.fillStyle = `hsla(${slideHue}, 60%, 30%, 0.3)`;
+    c.font = `bold ${Math.max(5, slideH * 0.15)}px monospace`;
+    c.textAlign = 'center';
+    const slides = ['Q2 目标', '技术方案', '排期讨论', 'Bug 回顾', '下周计划'];
+    const slideIdx = Math.floor(t * 0.05) % slides.length;
+    c.fillText(slides[slideIdx], targetLeft + slideW / 2, slideY + slideH * 0.15);
+
+    // PPT 内容行（模拟文字行）
+    c.fillStyle = `hsla(${slideHue}, 40%, 30%, 0.2)`;
+    const lineCount = 3 + Math.floor(t * 0.1) % 3;
+    for (let i = 0; i < lineCount; i++) {
+      const lineY = slideY + slideH * 0.25 + i * slideH * 0.18;
+      const lineWidth = slideW * (0.4 + Math.sin(i * 2.3) * 0.3);
+      c.fillRect(slideX + 4, lineY, lineWidth, 3);
+    }
+
+    // 投影仪运行指示灯
+    c.fillStyle = Math.sin(t * 4) > 0 ? '#2ecc71' : '#27ae60';
+    c.fillRect(projX + 3, projY - 2, 2, 2);
+
+    // 会议中人数提示
+    if (this.meetingAgentCount >= 2) {
+      c.fillStyle = 'rgba(255,255,255,0.8)';
+      c.font = 'bold 7px monospace';
+      c.textAlign = 'center';
+      c.fillText(`📽️ 会议中 ×${this.meetingAgentCount}`, projX, projY - 8);
     }
   }
 
@@ -1016,6 +1298,421 @@ export class Renderer {
   }
 
   // ============================================
+  // 📌 软木公告栏 — 真实办公室必备
+  // ============================================
+  private drawBulletinBoard(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+    // 软木板底色（棕黄色）
+    c.fillStyle = '#8b6914';
+    c.fillRect(x + 2, y + 2, ts - 4, ts - 4);
+    c.fillStyle = '#a07820';
+    c.fillRect(x + 3, y + 3, ts - 6, ts - 6);
+    // 软木纹理 — 细小随机斑点
+    c.fillStyle = 'rgba(139,105,20,0.5)';
+    for (let i = 0; i < 8; i++) {
+      const dx = 4 + ((i * 7 + 3) % (ts - 10));
+      const dy = 4 + ((i * 11 + 5) % (ts - 10));
+      c.fillRect(x + dx, y + dy, 1, 1);
+    }
+    // 木质边框
+    c.strokeStyle = '#5c3a1e';
+    c.lineWidth = 2;
+    c.strokeRect(x + 1, y + 1, ts - 2, ts - 2);
+
+    // 📝 便利贴1：黄色 — 行政通知
+    c.fillStyle = '#fbbf24';
+    c.fillRect(x + 4, y + 5, 8, 6);
+    c.fillStyle = '#92400e';
+    c.font = '3px monospace';
+    c.textAlign = 'left';
+    c.fillText('通知', x + 5, y + 8);
+    c.font = '2px monospace';
+    c.fillText('下周体检', x + 5, y + 10);
+    // 图钉
+    c.fillStyle = '#e94560';
+    c.beginPath();
+    c.arc(x + 8, y + 4, 1.5, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#c0392b';
+    c.beginPath();
+    c.arc(x + 8, y + 4, 0.8, 0, Math.PI * 2);
+    c.fill();
+
+    // 📝 便利贴2：粉色 — 生日提醒
+    c.fillStyle = '#f9a8d4';
+    c.fillRect(x + 16, y + 5, 8, 6);
+    // 微微旋转效果（用偏移模拟）
+    c.fillStyle = '#9d174d';
+    c.font = '3px monospace';
+    c.fillText('🎂', x + 17, y + 8);
+    c.font = '2px monospace';
+    c.fillText('4/15', x + 17, y + 10);
+    // 图钉
+    c.fillStyle = '#3b82f6';
+    c.beginPath();
+    c.arc(x + 20, y + 4, 1.5, 0, Math.PI * 2);
+    c.fill();
+
+    // 📝 便利贴3：绿色 — 外卖拼单
+    c.fillStyle = '#86efac';
+    c.fillRect(x + 6, y + 18, 10, 7);
+    c.fillStyle = '#166534';
+    c.font = '3px monospace';
+    c.fillText('拼奶茶!', x + 7, y + 21);
+    c.font = '2px monospace';
+    c.fillText('满30减15', x + 7, y + 24);
+    // 图钉
+    c.fillStyle = '#f59e0b';
+    c.beginPath();
+    c.arc(x + 11, y + 17, 1.5, 0, Math.PI * 2);
+    c.fill();
+
+    // 📝 便利贴4：蓝色 — WiFi密码
+    c.fillStyle = '#93c5fd';
+    c.fillRect(x + 20, y + 16, 8, 8);
+    c.fillStyle = '#1e3a5f';
+    c.font = '2px monospace';
+    c.fillText('WiFi:', x + 21, y + 19);
+    c.fillText('office', x + 21, y + 21);
+    c.fillText('5G', x + 21, y + 23);
+    // 图钉
+    c.fillStyle = '#a855f7';
+    c.beginPath();
+    c.arc(x + 24, y + 15, 1.5, 0, Math.PI * 2);
+    c.fill();
+
+    // 📋 打印的A4纸 — 公司制度（白色，比便利贴大）
+    c.fillStyle = '#f0f0f0';
+    c.fillRect(x + 14, y + 14, 12, 10);
+    c.strokeStyle = '#ddd';
+    c.lineWidth = 0.5;
+    c.strokeRect(x + 14, y + 14, 12, 10);
+    c.fillStyle = '#333';
+    c.font = 'bold 2.5px monospace';
+    c.fillText('考勤制度', x + 15, y + 17);
+    c.fillStyle = '#666';
+    c.font = '2px monospace';
+    c.fillText('9:00-18:00', x + 15, y + 19.5);
+    c.fillText('弹性±30min', x + 15, y + 21.5);
+    c.fillText('迟到扣50💰', x + 15, y + 23.5);
+    // 胶带固定效果
+    c.fillStyle = 'rgba(200,200,200,0.6)';
+    c.fillRect(x + 18, y + 13, 4, 2);
+  }
+
+  // ============================================
+  // 🥤 自动售货机 — 打工人的续命补给站
+  // ============================================
+  private drawVendingMachine(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+    // 机身 — 深蓝金属外壳
+    c.fillStyle = '#1a3a5e';
+    c.fillRect(x + 2, y + 1, ts - 4, ts - 2);
+    c.fillStyle = '#1e4472';
+    c.fillRect(x + 3, y + 2, ts - 6, ts - 4);
+
+    // 顶部品牌标识
+    c.fillStyle = '#e94560';
+    c.fillRect(x + 4, y + 3, ts - 8, 4);
+    c.fillStyle = '#fff';
+    c.font = `bold ${Math.max(5, ts - 18)}px monospace`;
+    c.textAlign = 'center';
+    c.fillText('VEND', x + ts / 2, y + 7);
+
+    // 🪟 展示玻璃窗 — 看到里面满满的饮料零食
+    c.fillStyle = '#0a1628';
+    c.fillRect(x + 4, y + 9, ts - 8, ts - 18);
+    // 玻璃反光效果
+    c.fillStyle = 'rgba(255,255,255,0.05)';
+    c.fillRect(x + 5, y + 10, ts / 3 - 2, ts - 20);
+
+    // 螺旋货架 — 3 层，每层 3 个商品
+    const shelfColors = [
+      // 第一层：饮料（瓶状）
+      ['#3498db', '#2ecc71', '#e74c3c'],
+      // 第二层：能量饮料/咖啡（罐状）
+      ['#f39c12', '#e74c3c', '#9b59b6'],
+      // 第三层：零食（袋状）
+      ['#e67e22', '#1abc9c', '#f1c40f'],
+    ];
+    for (let row = 0; row < 3; row++) {
+      const shelfY = y + 10 + row * 5;
+      // 货架隔板
+      c.fillStyle = '#555';
+      c.fillRect(x + 5, shelfY + 4, ts - 10, 1);
+      for (let col = 0; col < 3; col++) {
+        const itemX = x + 6 + col * 7;
+        const color = shelfColors[row][col];
+        // 商品闪烁灯光效果
+        const glow = 0.7 + Math.sin(t * 2 + row * 3 + col * 7) * 0.3;
+        c.fillStyle = color;
+        if (row === 0) {
+          // 瓶装饮料
+          c.fillRect(itemX, shelfY, 3, 4);
+          c.fillStyle = `rgba(255,255,255,${glow * 0.3})`;
+          c.fillRect(itemX, shelfY, 1, 4); // 瓶身高光
+        } else if (row === 1) {
+          // 罐装饮料
+          c.fillRect(itemX, shelfY + 1, 4, 3);
+          c.fillStyle = `rgba(255,255,255,${glow * 0.3})`;
+          c.fillRect(itemX + 1, shelfY + 1, 1, 3);
+        } else {
+          // 袋装零食
+          c.fillRect(itemX, shelfY, 5, 4);
+          // 包装标签
+          c.fillStyle = `rgba(255,255,255,${glow * 0.4})`;
+          c.fillRect(itemX + 1, shelfY + 1, 3, 1);
+        }
+      }
+    }
+
+    // 🎛️ 操作面板 — 按钮 + 投币口
+    const panelY = y + ts - 10;
+    c.fillStyle = '#2c3e50';
+    c.fillRect(x + 4, panelY, ts - 8, 7);
+    // 选择按钮 — 3x2 排列
+    for (let r = 0; r < 2; r++) {
+      for (let cl = 0; cl < 3; cl++) {
+        const bx = x + 5 + cl * 6;
+        const by = panelY + 1 + r * 3;
+        c.fillStyle = '#34495e';
+        c.fillRect(bx, by, 4, 2);
+        // 按钮 LED 指示灯
+        c.fillStyle = Math.sin(t * 3 + r * 5 + cl * 3) > 0 ? '#2ecc71' : '#27ae60';
+        c.fillRect(bx + 1, by, 1, 1);
+      }
+    }
+    // 投币口
+    c.fillStyle = '#1a1a2e';
+    c.fillRect(x + ts - 10, panelY + 1, 3, 4);
+    c.fillStyle = '#555';
+    c.fillRect(x + ts - 9, panelY + 2, 1, 2);
+
+    // 取货口
+    c.fillStyle = '#1a1a2e';
+    c.fillRect(x + 4, y + ts - 4, ts - 8, 3);
+    // 取货口挡板（微微晃动，像被风吹动）
+    const flapSway = Math.sin(t * 1.5) * 0.5;
+    c.fillStyle = '#333';
+    c.fillRect(x + 5 + flapSway, y + ts - 4, ts - 10, 1);
+
+    // LED 运行灯 — 底部灯带
+    const ledHue = (t * 30) % 360;
+    c.fillStyle = `hsla(${ledHue}, 80%, 60%, 0.15)`;
+    c.fillRect(x + 2, y + 1, ts - 4, 2);
+  }
+
+  // ============================================
+  // 📞 电话亭 — 透明玻璃小隔间，接私人电话/面试专用
+  // ============================================
+  private drawPhoneBooth(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+    // 底座 — 深色地板
+    c.fillStyle = '#1e2e3e';
+    c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+    c.fillStyle = '#2a3a4e';
+    c.fillRect(x + 2, y + 2, ts - 4, ts - 4);
+    // 玻璃墙 — 半透明蓝色
+    const glassAlpha = 0.2 + Math.sin(t * 0.5) * 0.05;
+    c.fillStyle = `rgba(90,184,232,${glassAlpha})`;
+    c.fillRect(x + 3, y + 3, ts - 6, ts - 6);
+    // 玻璃边框 — 银色金属
+    c.strokeStyle = '#8ab4d8';
+    c.lineWidth = 1;
+    c.strokeRect(x + 2, y + 2, ts - 4, ts - 4);
+    // 门缝 — 右边有一条垂直缝隙，像真实的玻璃门
+    c.fillStyle = 'rgba(255,255,255,0.15)';
+    c.fillRect(x + ts - 6, y + 4, 1, ts - 8);
+    // 门把手 — 小圆点
+    c.fillStyle = '#ccc';
+    c.beginPath();
+    c.arc(x + ts - 8, y + ts / 2, 1.5, 0, Math.PI * 2);
+    c.fill();
+    // 📞 内部电话 — 经典壁挂式电话机
+    c.fillStyle = '#2c2c2c';
+    c.fillRect(x + ts / 2 - 3, y + ts / 3 - 2, 6, 5); // 电话机身
+    c.fillStyle = '#444';
+    c.fillRect(x + ts / 2 - 2, y + ts / 3 - 1, 4, 3); // 电话面板
+    // 听筒 — 横放在电话机上
+    c.fillStyle = '#333';
+    c.fillRect(x + ts / 2 - 5, y + ts / 3 - 3, 10, 2); // 听筒横杆
+    c.fillStyle = '#222';
+    c.fillRect(x + ts / 2 - 6, y + ts / 3 - 4, 4, 2); // 听筒左端
+    c.fillRect(x + ts / 2 + 2, y + ts / 3 - 4, 4, 2); // 听筒右端
+    // 电话线 — 螺旋状（简化为曲线）
+    c.strokeStyle = '#555';
+    c.lineWidth = 0.5;
+    c.beginPath();
+    c.moveTo(x + ts / 2 - 3, y + ts / 3);
+    c.quadraticCurveTo(x + ts / 2 - 5, y + ts / 2, x + ts / 2 - 2, y + ts * 2 / 3);
+    c.stroke();
+    // "使用中" 指示灯 — 有人在打电话时亮起
+    const inUse = Math.sin(t * 0.7) > 0.3;
+    c.fillStyle = inUse ? '#e94560' : '#2ecc71';
+    c.fillRect(x + ts / 2 - 1, y + 4, 3, 2);
+    // 顶部标识
+    c.fillStyle = 'rgba(255,255,255,0.7)';
+    c.font = `bold ${Math.max(5, ts - 20)}px monospace`;
+    c.textAlign = 'center';
+    c.fillText('📞', x + ts / 2, y + ts - 1);
+    // 玻璃反光 — 偶尔有高光闪过
+    const glare = Math.sin(t * 1.2 + x * 0.1);
+    if (glare > 0.7) {
+      c.fillStyle = `rgba(255,255,255,${(glare - 0.7) * 0.8})`;
+      c.fillRect(x + 4, y + 4, ts / 3, ts / 4);
+    }
+  }
+
+  // ============================================
+  // 🖥️ 服务器机房 — 真实科技公司标配
+  // ============================================
+
+  // 服务器机柜 — 带闪烁LED指示灯
+  private drawServerRack(x: number, y: number, ts: number, t: number, tx: number, _ty: number): void {
+    const c = this.ctx;
+
+    // 机柜外壳 — 深灰色金属
+    c.fillStyle = '#1a1a2e';
+    c.fillRect(x + 2, y + 1, ts - 4, ts - 2);
+    c.fillStyle = '#222240';
+    c.fillRect(x + 3, y + 2, ts - 6, ts - 4);
+
+    // 服务器单元 — 4U 高度，每个单元有 LED
+    const unitH = (ts - 8) / 4;
+    const ledColors = ['#00ff88', '#00ccff', '#ff4444', '#ffaa00', '#00ff88', '#00ccff'];
+
+    for (let u = 0; u < 4; u++) {
+      const uy = y + 3 + u * unitH;
+      // 服务器面板
+      c.fillStyle = '#2a2a44';
+      c.fillRect(x + 4, uy, ts - 8, unitH - 1);
+      // 面板高光
+      c.fillStyle = '#333355';
+      c.fillRect(x + 5, uy + 1, ts - 12, unitH - 3);
+
+      // LED 指示灯 — 每个单元 3 个，不同闪烁频率
+      for (let led = 0; led < 3; led++) {
+        const ledX = x + 6 + led * 5;
+        const colorIdx = (tx * 3 + u * 7 + led * 13) % ledColors.length;
+        const blinkSpeed = 1 + led * 0.7 + u * 0.3;
+        const isOn = Math.sin(t * blinkSpeed + tx + u + led) > -0.3;
+        c.fillStyle = isOn ? ledColors[colorIdx] : '#1a1a2e';
+        c.fillRect(ledX, uy + 1, 3, 3);
+        // LED 发光效果
+        if (isOn) {
+          c.fillStyle = ledColors[colorIdx] + '40';
+          c.fillRect(ledX - 1, uy, 5, 5);
+        }
+      }
+
+      // 散热孔 — 右侧小条纹
+      c.fillStyle = '#1a1a2e';
+      for (let v = 0; v < 3; v++) {
+        c.fillRect(x + ts - 8, uy + 1 + v * 2, 3, 1);
+      }
+    }
+
+    // 机柜顶部标签
+    c.fillStyle = '#555';
+    c.fillRect(x + 4, y + 1, ts - 8, 2);
+    // 机柜编号
+    c.fillStyle = '#888';
+    c.font = `bold ${Math.max(5, ts - 22)}px monospace`;
+    c.textAlign = 'center';
+    const rackLabels = ['A1', 'A2', 'B1', 'B2'];
+    c.fillText(rackLabels[(tx * 3 + 1) % rackLabels.length], x + ts / 2, y + ts - 1);
+  }
+
+  // 机房玻璃隔断 — 半透明，能看到里面的服务器灯光
+  private drawServerRoomGlass(x: number, y: number, ts: number, t: number, tx: number, ty: number): void {
+    const c = this.ctx;
+
+    // 玻璃底色 — 深蓝半透明
+    c.fillStyle = 'rgba(15,25,45,0.85)';
+    c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+
+    // 玻璃框 — 银色金属边框
+    c.strokeStyle = '#4a6a8a';
+    c.lineWidth = 2;
+    c.strokeRect(x + 1, y + 1, ts - 2, ts - 2);
+
+    // 玻璃反射 — 偶尔有高光闪过
+    const glare = Math.sin(t * 0.8 + tx * 0.5) * 0.5 + 0.5;
+    if (glare > 0.7) {
+      c.fillStyle = `rgba(255,255,255,${(glare - 0.7) * 0.3})`;
+      c.fillRect(x + 3, y + 3, ts / 3, ts / 4);
+    }
+
+    // 透过玻璃看到的服务器 LED 灯光 — 模糊的彩色光点
+    const ledGlows = [
+      { cx: x + ts / 3, cy: y + ts / 3, color: '#00ff88' },
+      { cx: x + ts * 2 / 3, cy: y + ts / 3, color: '#00ccff' },
+      { cx: x + ts / 3, cy: y + ts * 2 / 3, color: '#ffaa00' },
+      { cx: x + ts * 2 / 3, cy: y + ts * 2 / 3, color: '#00ff88' },
+    ];
+
+    for (const led of ledGlows) {
+      const pulse = Math.sin(t * 2 + led.cx + led.cy) * 0.5 + 0.5;
+      const radius = 3 + pulse * 2;
+      // 发光效果
+      const gradient = c.createRadialGradient(led.cx, led.cy, 0, led.cx, led.cy, radius * 2);
+      gradient.addColorStop(0, led.color + Math.floor(pulse * 60).toString(16).padStart(2, '0'));
+      gradient.addColorStop(1, led.color + '00');
+      c.fillStyle = gradient;
+      c.fillRect(led.cx - radius * 2, led.cy - radius * 2, radius * 4, radius * 4);
+      // 核心亮点
+      c.fillStyle = led.color;
+      c.fillRect(led.cx - 1, led.cy - 1, 2, 2);
+    }
+
+    // "SERVER ROOM" 标识
+    c.fillStyle = 'rgba(255,255,255,0.6)';
+    c.font = `bold ${Math.max(5, ts - 20)}px monospace`;
+    c.textAlign = 'center';
+    c.fillText('🔒 SERVER', x + ts / 2, y + ts / 2 + 2);
+  }
+
+  // 🏷️ 团队分区地面标识 — 像真实办公室的团队名牌
+  private drawZoneLabel(x: number, y: number, ts: number, t: number, tx: number, _ty: number): void {
+    const c = this.ctx;
+
+    // 地面标识底色 — 与地毯略有区别的彩色区域
+    const zoneConfigs = [
+      { bg: 'rgba(59,130,246,0.25)', border: 'rgba(59,130,246,0.5)', text: '前端组', sub: 'FRONTEND', emoji: '🎨' },
+      { bg: 'rgba(34,197,94,0.25)', border: 'rgba(34,197,94,0.5)', text: '后端组', sub: 'BACKEND', emoji: '⚙️' },
+    ];
+
+    const config = zoneConfigs[tx % zoneConfigs.length];
+
+    // 标识区域 — 圆角矩形
+    const padding = 2;
+    c.fillStyle = config.bg;
+    c.fillRect(x + padding, y + padding, ts - padding * 2, ts - padding * 2);
+
+    // 边框 — 虚线效果（像地面的划线标识）
+    c.strokeStyle = config.border;
+    c.lineWidth = 1;
+    c.setLineDash([3, 2]);
+    c.strokeRect(x + padding, y + padding, ts - padding * 2, ts - padding * 2);
+    c.setLineDash([]);
+
+    // 团队 emoji
+    c.font = `${Math.max(8, ts - 14)}px sans-serif`;
+    c.textAlign = 'center';
+    c.fillText(config.emoji, x + ts / 2, y + ts / 2 + 2);
+
+    // 中文团队名
+    c.fillStyle = 'rgba(255,255,255,0.8)';
+    c.font = `bold ${Math.max(5, ts - 18)}px sans-serif`;
+    c.fillText(config.text, x + ts / 2, y + ts - 3);
+
+    // 英文副标题
+    c.fillStyle = 'rgba(255,255,255,0.4)';
+    c.font = `${Math.max(4, ts - 20)}px monospace`;
+    c.fillText(config.sub, x + ts / 2, y + 7);
+  }
+
+  // ============================================
   // Cat Drawing
   // ============================================
   private drawCat(cat: OfficeCat, ts: number, time: number): void {
@@ -1177,7 +1874,7 @@ export class Renderer {
     SpriteRenderer.drawAgent(ctx, px, py, a.config.role, a.state, a.animFrame, a.facing, time);
     ctx.fillStyle = '#fff'; ctx.font = '8px monospace'; ctx.textAlign = 'center';
     ctx.fillText(a.config.name, px, py + ts / 2 + 10);
-    const emoji: Record<string, string> = { idle: '😴', walking: '🚶', typing: '⌨️', reading: '📖', waiting: '⏳', error: '❌', fetching_task: '📋', '摸鱼中': '🐟' };
+    const emoji: Record<string, string> = { idle: '😴', walking: '🚶', typing: '⌨️', reading: '📖', waiting: '⏳', error: '❌', fetching_task: '📋', '摸鱼中': '🐟', '趴桌睡觉': '😴' };
     ctx.font = '10px sans-serif';
     ctx.fillText(emoji[a.state] || '', px, py - ts / 2 - 8);
     if (a.currentTask) {

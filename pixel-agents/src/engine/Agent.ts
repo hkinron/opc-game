@@ -144,6 +144,17 @@ export class Agent {
       case AgentState.FetchingTask:
         this.animFrame = 0;
         break;
+
+      case AgentState.趴桌睡觉:
+        this.animFrame = 0;
+        // 睡觉中 — 定时醒来
+        if (this.stateTimer > 15 + Math.random() * 20) {
+          this.state = AgentState.Idle;
+          this.stateTimer = 0;
+          this.speechBubble = '😪 睡醒了...下午继续搬砖';
+          this.speechTimer = 4;
+        }
+        break;
     }
 
     this.bobOffset = Math.sin(this.animTimer * 3) * 0.5;

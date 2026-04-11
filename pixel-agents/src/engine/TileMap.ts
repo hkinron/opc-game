@@ -34,6 +34,12 @@ export const TILE_CONFIG: Record<TileType, TileConfig> = {
   [TileType.DeskPhoto]:  { name: 'DeskPhoto',  color: '#fbbf24', borderColor: '#d4a83a', walkable: false },
   [TileType.UmbrellaStand]: { name: 'UmbrellaStand', color: '#5c3a1e', borderColor: '#8b6914', walkable: false },
   [TileType.AttendanceMachine]: { name: 'AttendanceMachine', color: '#2c3e50', borderColor: '#3498db', walkable: false },
+  [TileType.BulletinBoard]: { name: 'BulletinBoard', color: '#c0942a', borderColor: '#a07820', walkable: false },
+  [TileType.VendingMachine]: { name: 'VendingMachine', color: '#1a5276', borderColor: '#2e86c1', walkable: false },
+  [TileType.PhoneBooth]:   { name: 'PhoneBooth',   color: '#2a3a4e', borderColor: '#5ab8e8', walkable: false },
+  [TileType.ServerRack]:    { name: 'ServerRack',    color: '#1a1a2e', borderColor: '#00ff88', walkable: false },
+  [TileType.ServerRoomGlass]: { name: 'ServerRoomGlass', color: '#1a2a3a', borderColor: '#3a7a9a', walkable: false },
+  [TileType.ZoneLabel]:     { name: 'ZoneLabel',     color: '#3a3a5a', walkable: true },
 };
 
 export const KANBAN_BOARD = { x: 4, y: 1, width: 4 };
@@ -50,6 +56,9 @@ const FURNITURE_MAP: Record<string, TileType> = {
   packagelocker: TileType.PackageLocker,
   deskcup: TileType.DeskCup, deskplant: TileType.DeskPlant, deskphoto: TileType.DeskPhoto,
   umbrella: TileType.UmbrellaStand, attendancemachine: TileType.AttendanceMachine,
+  bulletinboard: TileType.BulletinBoard, vendingmachine: TileType.VendingMachine,
+  phonebooth: TileType.PhoneBooth, serverrack: TileType.ServerRack,
+  serverroomglass: TileType.ServerRoomGlass, zonelabel: TileType.ZoneLabel,
 };
 
 export class TileMap {

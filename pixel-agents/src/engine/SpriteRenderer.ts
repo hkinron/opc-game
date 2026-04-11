@@ -163,6 +163,42 @@ export class SpriteRenderer {
       ctx.arc(px, py, 10 * p, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    // === 💤 趴桌睡觉 — 午休经典场景 ===
+    if (state === 'desk_nap') {
+      // 重新画一个趴着的姿势：身体前倾，头趴在手臂上
+      // 清除之前的身体部分（用阴影色覆盖）
+      ctx.fillStyle = 'rgba(0,0,0,0.01)'; // 轻微覆盖
+      // 趴着的身体 — 压低
+      pxl(4, 10, body, 8, 5);
+      // 手臂趴在桌上
+      pxl(3, 11, body, 4, 2);
+      pxl(9, 11, body, 4, 2);
+      // 头侧趴在手臂上
+      pxl(5, 9, '#e8c39e', 6, 4);
+      // 头发覆盖头部上方
+      pxl(5, 8, hairColor, 6, 2);
+      // 闭着的眼睛（一条线）
+      pxl(6, 10, '#1e293b', 2, 1);
+      pxl(9, 10, '#1e293b', 2, 1);
+      // 嘴巴微张
+      pxl(7, 11, '#c2410c', 2, 1);
+      // 腿缩短（坐着趴）
+      pxl(5, 14, legs, 2, 3);
+      pxl(9, 14, legs, 2, 3);
+      pxl(4, 16, '#1e293b', 3, 1);
+      pxl(9, 16, '#1e293b', 3, 1);
+      // 💤 睡觉符号 — 浮动动画
+      const zzOff = Math.sin(time * 2) * 2;
+      ctx.fillStyle = 'rgba(148,163,184,0.7)';
+      ctx.font = 'bold 6px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('💤', px + 8 * p, oy + 2 * p + zzOff);
+      // Zzz 小符号
+      ctx.fillStyle = 'rgba(148,163,184,0.4)';
+      ctx.font = '4px monospace';
+      ctx.fillText('z', px + 10 * p, oy + 4 * p + zzOff * 0.5);
+    }
   }
 
   private static drawAccessory(

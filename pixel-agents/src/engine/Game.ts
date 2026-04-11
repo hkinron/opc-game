@@ -34,6 +34,17 @@ const RANDOM_EVENTS = [
   { msg: '💰 "今天是发薪日！"', weight: 2 },
   { msg: '🏖️ "还有 X 天放假！"', weight: 2 },
   { msg: '📋 "下班前能搞定吗？"', weight: 2 },
+  // 📞 电话亭专属事件
+  { msg: '📞 "喂，妈，我在加班呢..."', weight: 2 },
+  { msg: '📞 "对对对，我已经到岗了"（在家办公）', weight: 2 },
+  { msg: '📞 有人在电话亭面试！大家都安静...', weight: 3 },
+  { msg: '📞 "好的 HR，薪资期望是 open 的"', weight: 2 },
+  // 🖥️ 服务器机房专属事件
+  { msg: '🚨 服务器报警了！CPU 99%！', weight: 3 },
+  { msg: '🖥️ 运维又在重启服务器了...', weight: 2 },
+  { msg: '💾 "谁把生产数据库删了？！"', weight: 2 },
+  { msg: '🔌 机房空调坏了，服务器要热炸了', weight: 2 },
+  { msg: '📊 监控面板全绿，难得一见！', weight: 1 },
 ];
 
 // 🍵 茶水间专属闲聊 — 两个 agent 在茶水间相遇时触发
@@ -190,7 +201,7 @@ export class Game {
     if (this.boss.isVisible()) {
       for (const agent of this.agents) {
         if (this.boss.isNearby(agent.x, agent.y, 3)) {
-          if (agent.state === AgentState.摸鱼中 || agent.state === AgentState.Idle || agent.state === AgentState.Waiting) {
+          if (agent.state === AgentState.摸鱼中 || agent.state === AgentState.Idle || agent.state === AgentState.Waiting || agent.state === AgentState.趴桌睡觉) {
             agent.setState(AgentState.Typing);
             agent.speechBubble = '😰 假装工作中...';
             agent.speechTimer = 3;
@@ -215,6 +226,7 @@ export class Game {
 
     this.interactions.checkAgentProximity(this.agents);
     this.checkTeaRoomGossip();
+    this.checkMeetingRoom();
 
     if (this.useSimulation) {
       this.taskTimer += dt;
@@ -225,7 +237,7 @@ export class Game {
 
     // Task completion chime
     for (const agent of this.agents) {
-      if (agent.state === AgentState.摸鱼中) {
+      if (agent.state === AgentState.摸鱼中 || agent.state === AgentState.趴桌睡觉) {
         const taskId = this.agentTasks.get(agent.config.name);
         if (taskId && !this.completedTasks.has(taskId)) {
           this.completedTasks.add(taskId);
@@ -289,8 +301,12 @@ export class Game {
 
     // 🕐 午休时间 (12:00-13:00 中国时间)
     const isLunchTime = chinaHour >= 12 && chinaHour < 13;
+    // 😴 午休趴桌睡觉 — 中国办公室经典场景，午休时部分人直接趴工位上睡
+    const isNapTime = chinaHour >= 12 && chinaHour < 13;
     // 😴 下午犯困 (14:00-15:00)
     const isSleepyTime = chinaHour >= 14 && chinaHour < 15;
+    // ☕ 下午咖啡时间 (15:00-16:00) — 犯困后集体接咖啡
+    const isCoffeeRush = chinaHour >= 15 && chinaHour < 16;
     // 🎉 周五下午摸鱼 (15:00-18:00)
     const isFridayAfternoon = new Date().getUTCDay() === 5 && chinaHour >= 15 && chinaHour < 18;
     // 🌙 加班时间 (19:00-22:00)
@@ -335,41 +351,126 @@ export class Game {
     // 过了站会时间重置标志
     if (!isStandupTime) { this.standupTriggered = false; }
 
+    // 🖥️ 服务器机房行为 — 工作时间偶尔有 agent 被叫去修服务器
+    if (!isWeekend && chinaHour >= 1 && chinaHour < 11 && Math.random() < 0.06) {
+      const available_agent = this.agents.find(a =>
+        a.state === AgentState.Idle && !a.currentTask && this.tileMap.isWalkable(3, 3)
+      );
+      if (available_agent) {
+        const serverMessages = [
+          '🖥️ "CPU 又爆了，我去看看..."',
+          '🔧 "服务器重启一下就好"',
+          '💾 "生产库有个慢查询..."',
+          '📊 "监控报警了，紧急处理"',
+          '🔌 "机房空调又坏了？！"',
+          '🐛 "线上有个 P0 bug，我去修"',
+        ];
+        available_agent.walkTo(3, 3, this.tileMap);
+        available_agent.speechBubble = serverMessages[Math.floor(Math.random() * serverMessages.length)];
+        available_agent.speechTimer = 8;
+        setTimeout(() => {
+          if (available_agent.state !== AgentState.Walking) {
+            available_agent.setState(AgentState.Typing);
+            setTimeout(() => {
+              if (available_agent.state !== AgentState.Walking) {
+                available_agent.walkTo(available_agent.config.deskX, available_agent.config.deskY + 1, this.tileMap);
+                setTimeout(() => {
+                  if (available_agent.state !== AgentState.Walking) {
+                    available_agent.setState(AgentState.Typing);
+                    available_agent.speechBubble = '✅ 服务器修好了！';
+                    available_agent.speechTimer = 5;
+                  }
+                }, 3000);
+              }
+            }, 6000 + Math.random() * 4000);
+          }
+        }, 4000);
+      }
+    }
+
+    // 📞 电话亭行为 — 工作时间偶尔有人去打电话
+    if (!isWeekend && chinaHour >= 2 && chinaHour < 12 && Math.random() < 0.08) {
+      const availableAgent = this.agents.find(a =>
+        a.state === AgentState.Idle && !a.currentTask && this.tileMap.isWalkable(5, 11)
+      );
+      if (availableAgent) {
+        const phoneCalls = [
+          '📞 "喂妈，晚上回去吃..."',
+          '📞 "对，我已经到岗了"（远程办公）',
+          '📞 "快递放门口就好"',
+          '📞 "好的 HR，我考虑一下..."',
+          '📞 "宝宝乖，爸爸在加班"',
+          '📞 "物业说漏水了？！"',
+        ];
+        availableAgent.walkTo(5, 11, this.tileMap);
+        availableAgent.speechBubble = phoneCalls[Math.floor(Math.random() * phoneCalls.length)];
+        availableAgent.speechTimer = 10;
+        setTimeout(() => {
+          if (availableAgent.state !== AgentState.Walking) {
+            availableAgent.setState(AgentState.Waiting);
+            setTimeout(() => {
+              if (availableAgent.state !== AgentState.Walking) {
+                availableAgent.walkTo(availableAgent.config.deskX, availableAgent.config.deskY + 1, this.tileMap);
+                setTimeout(() => {
+                  if (availableAgent.state !== AgentState.Walking) availableAgent.setState(AgentState.Typing);
+                }, 3000);
+              }
+            }, 5000 + Math.random() * 5000);
+          }
+        }, 4000);
+      }
+    }
+
     // 🍜 午休时间：agent 离开座位去吃饭/休息
     if (isLunchTime) {
       for (const agent of this.agents) {
         if (agent.state === AgentState.Walking) continue;
         const rand = Math.random();
-        if (rand < 0.15) {
-          // 去茶水间加热午餐
-          const spots = [
-            { x: 9, y: 7, msg: '🍱 吃自带午餐...' },
-            { x: 8, y: 7, msg: '🔥 微波炉热饭中...' },
-            { x: 10, y: 9, msg: '🍪 饭后零食...' },
-            { x: 9, y: 10, msg: '☕ 饭后咖啡...' },
-            { x: 1, y: 7, msg: '🛋️ 沙发午休...' },
-          ];
-          const spot = spots[Math.floor(Math.random() * spots.length)];
-          if (this.tileMap.isWalkable(spot.x, spot.y)) {
-            agent.walkTo(spot.x, spot.y, this.tileMap);
-            agent.speechBubble = spot.msg;
-            agent.speechTimer = 8;
-            setTimeout(() => {
-              if (agent.state !== AgentState.Walking) {
-                agent.setState(AgentState.Idle);
-                // 吃完后在附近晃一会儿
-                setTimeout(() => {
-                  if (agent.state === AgentState.Idle) {
-                    agent.walkTo(agent.config.deskX, agent.config.deskY + 1, this.tileMap);
-                    setTimeout(() => {
-                      if (agent.state !== AgentState.Walking) agent.setState(AgentState.Typing);
-                    }, 4000);
-                  }
-                }, 5000 + Math.random() * 5000);
-              }
-            }, 6000);
+        if (rand < 0.12) {
+          // 😴 趴桌睡觉 — 中国办公室午休经典！25% 概率直接趴着睡
+          if (agent.state === AgentState.Idle && Math.random() < 0.35) {
+            agent.setState(AgentState.趴桌睡觉);
+            agent.stateTimer = 0;
+            const napMessages = [
+              '😴 午安 Zzz...',
+              '💤 让我睡一会儿...',
+              '😪 充电中...',
+              '🛌 午休时间勿扰',
+              '😴 zzz... 需求别改了...',
+            ];
+            agent.speechBubble = napMessages[Math.floor(Math.random() * napMessages.length)];
+            agent.speechTimer = 5;
+          } else {
+            // 去茶水间加热午餐
+            const spots = [
+              { x: 9, y: 7, msg: '🍱 吃自带午餐...' },
+              { x: 8, y: 7, msg: '🔥 微波炉热饭中...' },
+              { x: 10, y: 9, msg: '🍪 饭后零食...' },
+              { x: 9, y: 10, msg: '☕ 饭后咖啡...' },
+              { x: 1, y: 7, msg: '🛋️ 沙发午休...' },
+            ];
+            const spot = spots[Math.floor(Math.random() * spots.length)];
+            if (this.tileMap.isWalkable(spot.x, spot.y)) {
+              agent.walkTo(spot.x, spot.y, this.tileMap);
+              agent.speechBubble = spot.msg;
+              agent.speechTimer = 8;
+              setTimeout(() => {
+                if (agent.state !== AgentState.Walking) {
+                  agent.setState(AgentState.Idle);
+                  // 吃完后在附近晃一会儿
+                  setTimeout(() => {
+                    if (agent.state === AgentState.Idle) {
+                      agent.walkTo(agent.config.deskX, agent.config.deskY + 1, this.tileMap);
+                      setTimeout(() => {
+                        if (agent.state !== AgentState.Walking) agent.setState(AgentState.Typing);
+                      }, 4000);
+                    }
+                  }, 5000 + Math.random() * 5000);
+                }
+              }, 6000);
+            }
           }
-        } else if (rand < 0.25) {
+        } else if (rand < 0.22) {
           agent.speechBubble = '😋 吃饭去了~';
           agent.speechTimer = 3;
         }
@@ -403,6 +504,33 @@ export class Game {
           agent.speechBubble = '😫 不想上班...';
           agent.speechTimer = 4;
         }
+        // ☕ 下午咖啡时间 (15:00-16:00) — 集体去接咖啡/买饮料
+        if (isCoffeeRush && Math.random() < 0.15 && agent.state !== AgentState.Walking) {
+          const coffeeSpots = [
+            { x: 16, y: 8, msg: '☕ 续命咖啡...' },
+            { x: 15, y: 10, msg: '💧 接杯水清醒一下...' },
+            { x: 13, y: 8, msg: '🥤 自动售货机来罐红牛...' },
+            { x: 17, y: 9, msg: '🍪 摸鱼吃零食回血...' },
+          ];
+          const spot = coffeeSpots[Math.floor(Math.random() * coffeeSpots.length)];
+          if (this.tileMap.isWalkable(spot.x - 1, spot.y)) {
+            agent.walkTo(spot.x - 1, spot.y, this.tileMap);
+            agent.speechBubble = spot.msg;
+            agent.speechTimer = 4;
+            setTimeout(() => {
+              if (agent.state !== AgentState.Walking) {
+                agent.setState(AgentState.Typing);
+                agent.speechBubble = '💪 复活了！继续干活！';
+                agent.speechTimer = 6;
+                setTimeout(() => {
+                  if (agent.state !== AgentState.Walking) {
+                    agent.walkTo(agent.config.deskX, agent.config.deskY + 1, this.tileMap);
+                  }
+                }, 5000 + Math.random() * 5000);
+              }
+            }, 6000 + Math.random() * 4000);
+          }
+        }
       }
     }
 
@@ -410,8 +538,9 @@ export class Game {
       { x: 7, y: 4, msg: '☕ 接杯咖啡...' }, { x: 1, y: 6, msg: '🛋️ 摸鱼中...' },
       { x: 2, y: 3, msg: '📝 看看白板...' }, { x: 10, y: 3, msg: '📚 翻翻文档...' },
       { x: 6, y: 8, msg: '💬 串个门...' },
-      // 新增：卫生间 & 导向标识
-      { x: 1, y: 9, msg: '🚻 上个厕所...' }, { x: 6, y: 6, msg: '🪧 看看指示牌...' },
+      // 新增：卫生间 & 导向标识 & 售货机 & 电话亭
+      { x: 2, y: 6, msg: '🚻 上个厕所...' }, { x: 9, y: 7, msg: '🪧 看看指示牌...' },
+      { x: 12, y: 8, msg: '🥤 售货机买瓶水...' }, { x: 5, y: 11, msg: '📞 接个电话...' },
     ];
     for (const agent of this.agents) {
       if (this.agentTasks.has(agent.config.name)) continue;
@@ -439,9 +568,9 @@ export class Game {
   // 🍵 茶水间闲聊：两个 agent 同时出现在茶水间时触发专属 gossip
   private checkTeaRoomGossip(): void {
     const teaRoomSpots = [
-      { x: 16, y: 8 }, { x: 17, y: 8 }, { x: 17, y: 9 },
-      { x: 16, y: 10 }, { x: 15, y: 10 }, { x: 18, y: 8 },
-      { x: 14, y: 8 }, // 茶水间区域
+      { x: 15, y: 8 }, { x: 14, y: 9 }, { x: 13, y: 8 }, // 茶水间外围可走区域
+      { x: 15, y: 10 }, // 饮水机旁
+      { x: 8, y: 7 }, { x: 9, y: 7 }, // 微波炉附近
     ];
 
     const inTeaRoom = this.agents.filter(a => {
@@ -475,6 +604,43 @@ export class Game {
     }
   }
 
+  // 📽️ 会议室检测 — agents 聚集会议室时触发投影仪效果
+  private checkMeetingRoom(): void {
+    const meetingSpots = [
+      { x: 13, y: 2 }, { x: 13, y: 3 }, { x: 13, y: 4 },
+      { x: 14, y: 1 }, { x: 15, y: 1 }, { x: 16, y: 1 },
+      { x: 17, y: 2 }, { x: 17, y: 3 },
+      { x: 14, y: 4 }, { x: 15, y: 4 }, { x: 16, y: 4 },
+    ];
+
+    const inMeeting = this.agents.filter(a => {
+      return meetingSpots.some(s => Math.abs(a.x - s.x) <= 1.5 && Math.abs(a.y - s.y) <= 1.5);
+    });
+
+    const count = inMeeting.length;
+    this.renderer.setMeetingRoomActive(count >= 2, count);
+
+    // 会议话题 — agents 在会议室时显示对话
+    if (count >= 2 && Math.random() < 0.01) {
+      const meetingTopics = [
+        '这个需求得重新评估',
+        '技术方案谁写？',
+        '排期太紧了...',
+        '这个 sprint 能交付吗？',
+        '先 MVP 上线吧',
+        '用户反馈怎么说？',
+        '得加个灰度发布',
+        '性能指标达标了吗？',
+        '这个会开 2 小时了...',
+        '咱们快速对齐一下',
+      ];
+      const speaker = inMeeting[Math.floor(Math.random() * inMeeting.length)];
+      const topic = meetingTopics[Math.floor(Math.random() * meetingTopics.length)];
+      speaker.speechBubble = `📽️ "${topic}"`;
+      speaker.speechTimer = 4;
+    }
+  }
+
   addAgent(): void {
     if (this.nextAgentIndex >= this.deskSpots.length) return;
     const spot = this.deskSpots[this.nextAgentIndex];
@@ -493,7 +659,7 @@ export class Game {
   toggleSound(): boolean { return this.renderer.getSoundSystem().toggle(); }
 
   private updateStatusBar(): void {
-    const emoji: Record<string, string> = { idle: '😴', typing: '⌨️', walking: '🚶', reading: '📖', waiting: '⏳', error: '❌' };
+    const emoji: Record<string, string> = { idle: '😴', typing: '⌨️', walking: '🚶', reading: '📖', waiting: '⏳', error: '❌', '趴桌睡觉': '💤', '摸鱼中': '🐟' };
     const mode = this.useSimulation ? 'SIM' : 'LIVE';
     const stats = this.kanban.getStats();
     const atm = this.renderer.getDayNight().getState();
@@ -506,7 +672,7 @@ export class Game {
       ${bossStatus}
       <span style="color:#94a3b8;margin-right:8px">📋 ${stats.todo}→${stats.inProgress}→${stats.review}→${stats.done}</span>
     ` + this.agents.map(a => {
-      const sc = a.state === AgentState.Typing || a.state === AgentState.Reading ? 'working' : a.state === AgentState.Waiting ? 'waiting' : a.state === AgentState.Error ? 'error' : 'idle';
+      const sc = a.state === AgentState.Typing || a.state === AgentState.Reading ? 'working' : a.state === AgentState.Waiting ? 'waiting' : a.state === AgentState.Error ? 'error' : a.state === AgentState.趴桌睡觉 ? 'idle' : 'idle';
       return `<div class="agent-status"><span class="status-dot ${sc}"></span><span>${a.config.role}</span><span>${emoji[a.state]}</span><span>${a.config.name}</span></div>`;
     }).join('');
   }
@@ -534,6 +700,13 @@ export class Game {
       }
       for (const a of this.agents) {
         if (Math.round(a.x) === tx && Math.round(a.y) === ty) {
+          // 趴桌睡觉的 agent — 点击叫醒
+          if (a.state === AgentState.趴桌睡觉) {
+            a.setState(AgentState.Idle);
+            a.speechBubble = '😳 谁叫我？！';
+            a.speechTimer = 3;
+            return;
+          }
           const states = [AgentState.Typing, AgentState.Reading, AgentState.Waiting, AgentState.摸鱼中];
           a.setState(states[(states.indexOf(a.state) + 1) % states.length]); return;
         }
@@ -560,7 +733,7 @@ export class Game {
           this.tooltip.style.left = (e.clientX + 12) + 'px'; this.tooltip.style.top = (e.clientY + 12) + 'px';
           const task = this.agentTasks.get(a.config.name);
           const taskInfo = task ? this.kanban.tasks.find(t => t.id === task) : null;
-          this.tooltip.innerHTML = `<strong>${a.config.name}</strong><br>角色：${a.config.role}<br>状态：${a.state}<br>${taskInfo ? `任务：${taskInfo.title}<br>` : ''}动作：${a.speechBubble || '摸鱼中'}<br>坐标：(${a.x}, ${a.y})`;
+          this.tooltip.innerHTML = `<strong>${a.config.name}</strong><br>角色：${a.config.role}<br>状态：${a.state}<br>${taskInfo ? `任务：${taskInfo.title}<br>` : ''}动作：${a.speechBubble || (a.state === AgentState.趴桌睡觉 ? '💤 午休中...' : '摸鱼中')}<br>坐标：(${a.x}, ${a.y})`;
           found = true; break;
         }
       }
