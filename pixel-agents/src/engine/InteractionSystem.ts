@@ -62,7 +62,7 @@ export interface Conversation {
 // ==================== Office Object Interactions ====================
 
 export interface InteractableObject {
-  type: 'coffee' | 'couch' | 'whiteboard' | 'bookshelf' | 'printer' | 'plant' | 'desk' | 'microwave' | 'snackbar' | 'meetingtable' | 'restroom' | 'signpost' | 'packagelocker';
+  type: 'coffee' | 'couch' | 'whiteboard' | 'bookshelf' | 'printer' | 'plant' | 'desk' | 'microwave' | 'snackbar' | 'meetingtable' | 'restroom' | 'signpost' | 'packagelocker' | 'watercooler';
   x: number;
   y: number;
   label: string;
@@ -128,6 +128,11 @@ const OBJECT_INTERACTIONS: Record<string, InteractableObject[]> = {
     type: 'packagelocker', x: 11, y: 9, label: '快递柜', emoji: '📦',
     actionText: '取快递中...', actionDuration: 5, actionState: AgentState.Waiting,
     nearbyTile: { x: 10, y: 9 },
+  }],
+  watercooler: [{
+    type: 'watercooler', x: 9, y: 9, label: '饮水机', emoji: '💧',
+    actionText: '接水喝...', actionDuration: 4, actionState: AgentState.Waiting,
+    nearbyTile: { x: 8, y: 9 },
   }],
 };
 

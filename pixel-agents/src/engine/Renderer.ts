@@ -633,24 +633,53 @@ export class Renderer {
   }
 
   // ============================================
-  // 🪧 导向标识
+  // 🪧 导向标识 — 真实的多方向指示牌
   // ============================================
   private drawSignpost(x: number, y: number, ts: number, t: number): void {
     const c = this.ctx;
     // 标识杆
     c.fillStyle = '#888'; c.fillRect(x + ts / 2 - 1, y + ts / 2, 2, ts / 2 - 2);
-    // 标识牌底板
-    c.fillStyle = '#c0942a'; c.fillRect(x + 2, y + 2, ts - 4, ts / 2 + 2);
-    c.fillStyle = '#d4a83a'; c.fillRect(x + 3, y + 3, ts - 6, ts / 2);
-    // 箭头文字 — 交替闪烁
-    c.font = 'bold 7px monospace'; c.textAlign = 'center';
-    const labels = ['👉会议室', '👈茶水间', '👇电梯口'];
-    const idx = Math.floor(t * 0.5) % labels.length;
-    c.fillStyle = '#333';
-    c.fillText(labels[idx], x + ts / 2, y + ts / 2 + 1);
-    // 高亮边框
-    c.strokeStyle = '#f0d060'; c.lineWidth = 1;
-    c.strokeRect(x + 2, y + 2, ts - 4, ts / 2 + 2);
+    // 底座
+    c.fillStyle = '#777'; c.fillRect(x + ts / 2 - 3, y + ts - 5, 6, 3);
+
+    // 多方向指示牌 — 三层叠加，像真实的路牌
+    const signs = [
+      { label: '→ 会议室', yOff: y + 1, w: ts - 4, bg: '#3b82f6', fg: '#fff', dir: 'right' },
+      { label: '← 茶水间', yOff: y + ts / 3 - 1, w: ts - 4, bg: '#22c55e', fg: '#fff', dir: 'left' },
+      { label: '↓ 电梯口', yOff: y + ts * 2 / 3 - 3, w: ts - 4, bg: '#f59e0b', fg: '#fff', dir: 'down' },
+    ];
+
+    for (const sign of signs) {
+      const sh = ts / 3 - 1;
+      // 箭头形状 — 根据方向偏移
+      c.fillStyle = sign.bg;
+      if (sign.dir === 'right') {
+        c.fillRect(x + 1, sign.yOff, sign.w - 4, sh);
+        c.beginPath();
+        c.moveTo(x + sign.w - 3, sign.yOff + sh / 2);
+        c.lineTo(x + sign.w + 1, sign.yOff);
+        c.lineTo(x + sign.w + 1, sign.yOff + sh);
+        c.fill();
+      } else if (sign.dir === 'left') {
+        c.fillRect(x + 3, sign.yOff, sign.w - 4, sh);
+        c.beginPath();
+        c.moveTo(x + 3, sign.yOff + sh / 2);
+        c.lineTo(x - 1, sign.yOff);
+        c.lineTo(x - 1, sign.yOff + sh);
+        c.fill();
+      } else {
+        c.fillRect(x + 1, sign.yOff, sign.w - 2, sh);
+      }
+      // 文字
+      c.fillStyle = sign.fg;
+      c.font = `bold ${Math.max(6, sh - 6)}px monospace`;
+      c.textAlign = 'center';
+      c.fillText(sign.label, x + ts / 2, sign.yOff + sh - 2);
+    }
+
+    // 标识杆连接处
+    c.fillStyle = '#999';
+    c.fillRect(x + ts / 2 - 2, y + 1, 4, ts - 4);
   }
 
   // ============================================

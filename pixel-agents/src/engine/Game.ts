@@ -64,6 +64,7 @@ export class Game {
   private completedTasks: Set<string> = new Set();
   private eventTimer = 0;
   private bossVisibleLast = false;
+  private standupTriggered = false;
   private konamiBuffer: string = '';
   private konamiCode = 'ArrowUpArrowUpArrowDownArrowDownArrowLeftArrowRightArrowLeftArrowRightKeyBKeyA';
 
@@ -277,6 +278,82 @@ export class Game {
     const isOffHours = chinaHour >= 22 || chinaHour < 8;
     // 😫 周一早上 (周一 8:00-10:00)
     const isMondayMorning = new Date().getUTCDay() === 1 && chinaHour >= 0 && chinaHour < 2; // UTC 0-2 = China 8-10
+    // 📋 晨会站会 (工作日 9:00-10:00 中国时间)
+    const isStandupTime = !isWeekend && chinaHour >= 1 && chinaHour < 2; // UTC 1-2 = China 9-10
+
+    // 📋 晨会站会：agents 聚集到白板区域开会
+    if (isStandupTime && !this.standupTriggered) {
+      this.standupTriggered = true;
+      const standupSpots = [
+        { x: 2, y: 2, msg: '📋 今天做登录模块' },
+        { x: 3, y: 2, msg: '🎨 我在搞首页设计' },
+        { x: 2, y: 3, msg: '🐛 修了3个bug' },
+        { x: 3, y: 3, msg: '📝 写 API 文档' },
+        { x: 4, y: 2, msg: '🧪 补单元测试' },
+        { x: 4, y: 3, msg: '📊 部署监控系统' },
+      ];
+      for (let i = 0; i < Math.min(this.agents.length, standupSpots.length); i++) {
+        const agent = this.agents[i];
+        if (agent.state === AgentState.Walking) continue;
+        const spot = standupSpots[i];
+        agent.walkTo(spot.x, spot.y, this.tileMap);
+        agent.speechBubble = spot.msg;
+        agent.speechTimer = 12;
+        // 站会后回工位
+        setTimeout(() => {
+          if (agent.state !== AgentState.Walking) {
+            agent.walkTo(agent.config.deskX, agent.config.deskY + 1, this.tileMap);
+            setTimeout(() => {
+              if (agent.state !== AgentState.Walking) agent.setState(AgentState.Typing);
+            }, 3000);
+          }
+        }, 10000 + Math.random() * 5000);
+      }
+      this.renderer.triggerEvent('📋 每日站会！大家到白板前集合！', 8);
+    }
+    // 过了站会时间重置标志
+    if (!isStandupTime) { this.standupTriggered = false; }
+
+    // 🍜 午休时间：agent 离开座位去吃饭/休息
+    if (isLunchTime) {
+      for (const agent of this.agents) {
+        if (agent.state === AgentState.Walking) continue;
+        const rand = Math.random();
+        if (rand < 0.15) {
+          // 去茶水间加热午餐
+          const spots = [
+            { x: 9, y: 7, msg: '🍱 吃自带午餐...' },
+            { x: 8, y: 7, msg: '🔥 微波炉热饭中...' },
+            { x: 10, y: 9, msg: '🍪 饭后零食...' },
+            { x: 9, y: 10, msg: '☕ 饭后咖啡...' },
+            { x: 1, y: 7, msg: '🛋️ 沙发午休...' },
+          ];
+          const spot = spots[Math.floor(Math.random() * spots.length)];
+          if (this.tileMap.isWalkable(spot.x, spot.y)) {
+            agent.walkTo(spot.x, spot.y, this.tileMap);
+            agent.speechBubble = spot.msg;
+            agent.speechTimer = 8;
+            setTimeout(() => {
+              if (agent.state !== AgentState.Walking) {
+                agent.setState(AgentState.Idle);
+                // 吃完后在附近晃一会儿
+                setTimeout(() => {
+                  if (agent.state === AgentState.Idle) {
+                    agent.walkTo(agent.config.deskX, agent.config.deskY + 1, this.tileMap);
+                    setTimeout(() => {
+                      if (agent.state !== AgentState.Walking) agent.setState(AgentState.Typing);
+                    }, 4000);
+                  }
+                }, 5000 + Math.random() * 5000);
+              }
+            }, 6000);
+          }
+        } else if (rand < 0.25) {
+          agent.speechBubble = '😋 吃饭去了~';
+          agent.speechTimer = 3;
+        }
+      }
+    }
 
     for (const agent of this.agents) {
       if (this.agentTasks.has(agent.config.name) && agent.state === AgentState.摸鱼中) {
@@ -292,8 +369,6 @@ export class Game {
           agent.speechTimer = 5;
         }
       } else if (this.agentTasks.has(agent.config.name) && agent.state === AgentState.Typing) {
-        // 午休时间：降低摸鱼概率（大家去吃饭了）
-        if (isLunchTime && Math.random() < 0.05) return; // skip, already eating
         // 下午犯困：摸鱼概率翻倍
         const slackingChance = isSleepyTime ? 0.30 : isFridayAfternoon ? 0.40 : 0.15;
         if (Math.random() < slackingChance) {
@@ -350,6 +425,7 @@ export class Game {
   reset(): void {
     this.agents = []; this.nextAgentIndex = 0; this.simTimer = 0; this.taskTimer = 0;
     this.agentTasks.clear(); this.completedTasks.clear(); this.eventTimer = 0;
+    this.standupTriggered = false;
     this.addAgent(); this.addAgent(); this.addAgent();
   }
 

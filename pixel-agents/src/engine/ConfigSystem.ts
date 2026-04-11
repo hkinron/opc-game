@@ -147,6 +147,8 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
     { type: 'signpost', x: 6, y: 5 },
     // 📦 快递柜 (茶水间旁)
     { type: 'packagelocker', x: 11, y: 9 },
+    // 💧 饮水机 (茶水间入口)
+    { type: 'watercooler', x: 9, y: 9 },
 
     // 🧑‍💻 工位个人物品 — 每个工位都有自己的特色
     // 小明的工位 (3,3): 水杯 + 小盆栽
