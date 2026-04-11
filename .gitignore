@@ -1,0 +1,13 @@
+node_modules
+.clawhub
+skills
+package.json
+package-lock.json
+memory
+.openclaw
+AGENTS.md
+IDENTITY.md
+SOUL.md
+TOOLS.md
+USER.md
+HEARTBEAT.md

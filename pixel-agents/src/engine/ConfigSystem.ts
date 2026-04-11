@@ -114,14 +114,39 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
   width: 13, height: 11,
   desks: [
     { x: 3, y: 3 }, { x: 6, y: 3 }, { x: 9, y: 3 },
-    { x: 3, y: 7 }, { x: 6, y: 7 }, { x: 9, y: 7 },
+    { x: 3, y: 6 }, { x: 6, y: 6 }, { x: 9, y: 6 },
   ],
   furniture: [
+    // ===== 入口区域 (底部中央) =====
+    { type: 'elevator', x: 5, y: 9 }, { type: 'elevator', x: 7, y: 9 },
+    { type: 'receptiondesk', x: 6, y: 9 },
+    // 地毯走廊 — 从电梯口贯穿到办公区
+    { type: 'carpet', x: 6, y: 8 }, { type: 'carpet', x: 6, y: 7 },
+    { type: 'carpet', x: 6, y: 5 }, { type: 'carpet', x: 6, y: 4 },
+    // 入口两侧绿植
+    { type: 'plant', x: 4, y: 9 }, { type: 'plant', x: 8, y: 9 },
+
+    // ===== 办公区 =====
     { type: 'plant', x: 4, y: 5 }, { type: 'coffee', x: 7, y: 5 },
     { type: 'plant', x: 10, y: 5 }, { type: 'couch', x: 1, y: 5 },
     { type: 'couch', x: 2, y: 5 }, { type: 'whiteboard', x: 1, y: 1 },
     { type: 'whiteboard', x: 2, y: 1 }, { type: 'bookshelf', x: 10, y: 1 },
-    { type: 'bookshelf', x: 11, y: 1 }, { type: 'printer', x: 10, y: 9 },
+    { type: 'bookshelf', x: 11, y: 1 }, { type: 'printer', x: 10, y: 8 },
+    // 会议室区域 (右上角)
+    { type: 'meetingtable', x: 9, y: 1 }, { type: 'meetingtable', x: 10, y: 1 },
+    { type: 'meetingtable', x: 11, y: 1 }, { type: 'meetingtable', x: 9, y: 2 },
+    { type: 'meetingtable', x: 10, y: 2 }, { type: 'meetingtable', x: 11, y: 2 },
+    // 茶水间区域 (右下角)
+    { type: 'microwave', x: 10, y: 7 }, { type: 'snackbar', x: 11, y: 7 },
+    { type: 'fridge', x: 10, y: 8 }, { type: 'trash', x: 11, y: 8 },
+    { type: 'coffee', x: 10, y: 10 },
+    { type: 'plant', x: 9, y: 5 },
+    // 🚻 卫生间 (左下角)
+    { type: 'restroom', x: 1, y: 8 },
+    // 🪧 导向标识 (走廊)
+    { type: 'signpost', x: 6, y: 5 },
+    // 📦 快递柜 (茶水间旁)
+    { type: 'packagelocker', x: 11, y: 9 },
   ],
 };
 

@@ -159,6 +159,23 @@ export class SoundSystem {
     });
   }
 
+  /** Event notification — alert chime */
+  playEvent(): void {
+    if (!this.enabled || !this.ctx || !this.masterGain) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(880, t);
+    osc.frequency.exponentialRampToValueAtTime(440, t + 0.15);
+    gain.gain.setValueAtTime(0.08, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(t);
+    osc.stop(t + 0.2);
+  }
+
   /** Ambient office hum — very subtle background */
   playAmbient(): void {
     if (!this.enabled || !this.ctx || !this.masterGain) return;

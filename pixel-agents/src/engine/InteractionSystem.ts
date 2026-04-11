@@ -9,21 +9,24 @@ import { AgentState } from '../types';
 // ==================== Agent-Chat Conversations ====================
 
 const CHAT_PAIRS = [
-  { a: 'Hey, did you see the PR?', b: 'Yeah, left some comments 👀' },
-  { a: 'The build is broken again...', b: 'Not my code this time 😅' },
-  { a: 'Coffee break?', b: 'Way ahead of you ☕' },
-  { a: 'Can you review my PR?', b: 'Sure, give me 5 min' },
-  { a: 'I found a bug in prod', b: '...again? 🫠' },
-  { a: 'This design looks great!', b: 'Thanks! Took 3 iterations' },
-  { a: 'Anyone want to pair program?', b: 'Let\'s go! 🤝' },
-  { a: 'The tests are finally passing', b: 'Celebration time! 🎉' },
-  { a: 'I need help with the API', b: 'I\'m free, what\'s up?' },
-  { a: 'Deployed to staging', b: 'Fingers crossed 🤞' },
-  { a: 'Who deleted the database?', b: 'It was already like that!' },
-  { a: 'New ticket just dropped', b: 'Of course it did 💀' },
-  { a: 'I think we need a refactor', b: 'Let\'s not break everything' },
-  { a: 'The client wants changes', b: 'When don\'t they? 😤' },
-  { a: 'Weekend plans?', b: 'Sleep. Just sleep 😴' },
+  { a: '你看了那个 PR 没？', b: '看了，留了几条评论 👀' },
+  { a: '构建又挂了...', b: '这次不是我写的代码 😅' },
+  { a: '喝咖啡不？', b: '早就在喝了 ☕' },
+  { a: '能帮我 review 一下 PR 吗？', b: '行，给我 5 分钟' },
+  { a: '线上出了个 bug', b: '……又来？🫠' },
+  { a: '这个设计挺不错的！', b: '谢谢！改了 3 版才定下来' },
+  { a: '有人想结对编程吗？', b: '来来来！🤝' },
+  { a: '测试终于全过了', b: '庆祝一下！🎉' },
+  { a: '这个 API 我不太会用', b: '我有空，怎么了？' },
+  { a: '已经部署到 staging 了', b: '祈祷别出问题 🤞' },
+  { a: '谁把数据库删了？', b: '我拿到就是这样的！' },
+  { a: '新需求来了', b: '不出所料 💀' },
+  { a: '我觉得得重构一下', b: '别把东西搞坏了就行' },
+  { a: '客户又改需求了', b: '习以为常了 😤' },
+  { a: '周末干嘛？', b: '睡觉。就想睡觉 😴' },
+  { a: '今天的 commit 好多', b: '疯狂星期四 🤪' },
+  { a: '这个 bug 我找不到原因', b: '我帮你看看？' },
+  { a: '谁动了我的配置？', b: '不是我，真的不是' },
 ];
 
 export interface Conversation {
@@ -39,7 +42,7 @@ export interface Conversation {
 // ==================== Office Object Interactions ====================
 
 export interface InteractableObject {
-  type: 'coffee' | 'couch' | 'whiteboard' | 'bookshelf' | 'printer' | 'plant' | 'desk';
+  type: 'coffee' | 'couch' | 'whiteboard' | 'bookshelf' | 'printer' | 'plant' | 'desk' | 'microwave' | 'snackbar' | 'meetingtable' | 'restroom' | 'signpost' | 'packagelocker';
   x: number;
   y: number;
   label: string;
@@ -52,29 +55,59 @@ export interface InteractableObject {
 
 const OBJECT_INTERACTIONS: Record<string, InteractableObject[]> = {
   coffee: [{
-    type: 'coffee', x: 7, y: 5, label: 'Coffee Machine', emoji: '☕',
-    actionText: 'Brewing coffee...', actionDuration: 5, actionState: AgentState.Waiting,
+    type: 'coffee', x: 7, y: 5, label: '咖啡机', emoji: '☕',
+    actionText: '煮咖啡...', actionDuration: 5, actionState: AgentState.Waiting,
     nearbyTile: { x: 6, y: 5 },
   }],
   couch: [{
-    type: 'couch', x: 1, y: 5, label: 'Couch', emoji: '🛋️',
-    actionText: 'Relaxing...', actionDuration: 8, actionState: AgentState.Idle,
+    type: 'couch', x: 1, y: 5, label: '沙发', emoji: '🛋️',
+    actionText: '躺平摸鱼中...', actionDuration: 8, actionState: AgentState.Idle,
     nearbyTile: { x: 2, y: 4 },
   }],
   whiteboard: [{
-    type: 'whiteboard', x: 1, y: 1, label: 'Whiteboard', emoji: '📝',
-    actionText: 'Brainstorming...', actionDuration: 6, actionState: AgentState.Reading,
+    type: 'whiteboard', x: 1, y: 1, label: '白板', emoji: '📝',
+    actionText: '头脑风暴中...', actionDuration: 6, actionState: AgentState.Reading,
     nearbyTile: { x: 2, y: 2 },
   }],
   bookshelf: [{
-    type: 'bookshelf', x: 10, y: 1, label: 'Bookshelf', emoji: '📚',
-    actionText: 'Reading docs...', actionDuration: 5, actionState: AgentState.Reading,
+    type: 'bookshelf', x: 10, y: 1, label: '书架', emoji: '📚',
+    actionText: '查文档中...', actionDuration: 5, actionState: AgentState.Reading,
     nearbyTile: { x: 9, y: 2 },
   }],
   printer: [{
-    type: 'printer', x: 10, y: 9, label: 'Printer', emoji: '🖨️',
-    actionText: 'Printing...', actionDuration: 4, actionState: AgentState.Waiting,
+    type: 'printer', x: 10, y: 9, label: '打印机', emoji: '🖨️',
+    actionText: '打印文件...', actionDuration: 4, actionState: AgentState.Waiting,
     nearbyTile: { x: 9, y: 9 },
+  }],
+  meetingtable: [{
+    type: 'meetingtable', x: 10, y: 1, label: '会议室', emoji: '🏢',
+    actionText: '开会中...', actionDuration: 8, actionState: AgentState.Waiting,
+    nearbyTile: { x: 8, y: 2 },
+  }],
+  microwave: [{
+    type: 'microwave', x: 10, y: 8, label: '微波炉', emoji: '🔥',
+    actionText: '加热午餐...', actionDuration: 5, actionState: AgentState.Waiting,
+    nearbyTile: { x: 9, y: 8 },
+  }],
+  snackbar: [{
+    type: 'snackbar', x: 11, y: 8, label: '零食柜', emoji: '🍪',
+    actionText: '摸鱼吃零食...', actionDuration: 4, actionState: AgentState.Idle,
+    nearbyTile: { x: 9, y: 9 },
+  }],
+  restroom: [{
+    type: 'restroom', x: 1, y: 8, label: '卫生间', emoji: '🚻',
+    actionText: '带薪上厕所...', actionDuration: 6, actionState: AgentState.Idle,
+    nearbyTile: { x: 2, y: 8 },
+  }],
+  signpost: [{
+    type: 'signpost', x: 6, y: 5, label: '导向标识', emoji: '🪧',
+    actionText: '看路牌中...', actionDuration: 3, actionState: AgentState.Reading,
+    nearbyTile: { x: 6, y: 6 },
+  }],
+  packagelocker: [{
+    type: 'packagelocker', x: 11, y: 9, label: '快递柜', emoji: '📦',
+    actionText: '取快递中...', actionDuration: 5, actionState: AgentState.Waiting,
+    nearbyTile: { x: 10, y: 9 },
   }],
 };
 

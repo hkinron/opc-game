@@ -150,10 +150,10 @@ export class KanbanBoard {
 
     const columns: Task['column'][] = ['todo', 'in_progress', 'review', 'done'];
     const columnLabels: Record<Task['column'], string> = {
-      todo: '📋 To Do',
-      in_progress: '🔨 In Progress',
-      review: '🔍 Review',
-      done: '✅ Done',
+      todo: '📋 待办',
+      in_progress: '🔨 进行中',
+      review: '🔍 审核中',
+      done: '✅ 已完成',
     };
 
     this.container.innerHTML = `
@@ -192,7 +192,7 @@ export class KanbanBoard {
           <span style="font-size: 10px;">${PRIORITY_LABELS[task.priority]}</span>
         </div>
         ${task.description ? `<div style="color: #94a3b8; font-size: 10px; margin-top: 4px;">${task.description}</div>` : ''}
-        ${task.assignee ? `<div style="color: #4a90d9; font-size: 10px; margin-top: 4px;">👤 ${task.assignee}</div>` : '<div style="color: #666; font-size: 10px; margin-top: 4px;">Unassigned</div>'}
+        ${task.assignee ? `<div style="color: #4a90d9; font-size: 10px; margin-top: 4px;">👤 ${task.assignee}</div>` : '<div style="color: #666; font-size: 10px; margin-top: 4px;">未分配</div>'}
       </div>
     `;
   }
