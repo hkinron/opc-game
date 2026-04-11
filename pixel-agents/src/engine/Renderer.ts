@@ -300,17 +300,98 @@ export class Renderer {
 
   private drawDesk(x: number, y: number, ts: number): void {
     const c = this.ctx;
-    c.fillStyle = '#a07820'; c.fillRect(x + 2, y + 4, ts - 4, ts - 8);
-    c.fillStyle = '#6b5010'; c.fillRect(x + 3, y + ts - 6, 3, 4); c.fillRect(x + ts - 6, y + ts - 6, 3, 4);
-    c.fillStyle = '#222'; c.fillRect(x + ts / 2 - 8, y + 4, 7, 6); c.fillRect(x + ts / 2 + 1, y + 4, 7, 6);
-    c.fillStyle = '#4488bb'; c.fillRect(x + ts / 2 - 7, y + 5, 5, 4);
-    c.fillStyle = '#88bb44'; c.fillRect(x + ts / 2 + 2, y + 5, 5, 4);
-    c.fillStyle = 'rgba(68,136,187,0.2)'; c.fillRect(x + ts / 2 - 9, y + 3, 9, 8);
-    c.fillStyle = 'rgba(136,187,68,0.2)'; c.fillRect(x + ts / 2, y + 3, 9, 8);
-    c.fillStyle = '#444'; c.fillRect(x + ts / 2 - 5, y + ts - 8, 10, 3);
-    c.fillStyle = '#555'; c.fillRect(x + ts / 2 + 6, y + ts - 7, 3, 2);
-    c.fillStyle = '#f0f0f0'; c.fillRect(x + 3, y + ts - 7, 3, 3);
-    c.fillStyle = '#8b4513'; c.fillRect(x + 3, y + ts - 7, 3, 1);
+    // 桌面 — 深色木纹
+    c.fillStyle = '#7a5a2a';
+    c.fillRect(x + 1, y + 3, ts - 2, ts - 5);
+    c.fillStyle = '#8b6914';
+    c.fillRect(x + 2, y + 4, ts - 4, ts - 6);
+    // 桌腿
+    c.fillStyle = '#5a4010';
+    c.fillRect(x + 2, y + ts - 5, 3, 3);
+    c.fillRect(x + ts - 5, y + ts - 5, 3, 3);
+
+    // 🖥️ 双显示器 — 程序员标配
+    // 左显示器
+    c.fillStyle = '#1a1a1a';
+    c.fillRect(x + 3, y + 2, ts / 2 - 4, ts / 2 - 1);
+    c.fillStyle = '#222';
+    c.fillRect(x + 4, y + 3, ts / 2 - 6, ts / 2 - 3);
+    // 左屏幕内容 — 代码编辑器（深色主题）
+    c.fillStyle = '#1e1e2e';
+    c.fillRect(x + 5, y + 4, ts / 2 - 8, ts / 2 - 5);
+    // 代码行
+    const codeColors = ['#c678dd', '#61afef', '#98c379', '#e5c07b', '#e06c75', '#56b6c2'];
+    for (let i = 0; i < 4; i++) {
+      c.fillStyle = codeColors[(i + x * 3 + y * 7) % codeColors.length];
+      const lineW = 3 + ((i * 5 + x * 2) % 6);
+      c.fillRect(x + 6, y + 5 + i * 3, lineW, 2);
+    }
+    // 显示器支架
+    c.fillStyle = '#333';
+    c.fillRect(x + ts / 4 - 1, y + ts / 2, 2, 4);
+    c.fillRect(x + ts / 4 - 3, y + ts / 2 + 3, 6, 1);
+
+    // 右显示器
+    c.fillStyle = '#1a1a1a';
+    c.fillRect(x + ts / 2 + 1, y + 2, ts / 2 - 4, ts / 2 - 1);
+    c.fillStyle = '#222';
+    c.fillRect(x + ts / 2 + 2, y + 3, ts / 2 - 6, ts / 2 - 3);
+    // 右屏幕内容 — 浏览器/终端
+    c.fillStyle = '#0a0a14';
+    c.fillRect(x + ts / 2 + 3, y + 4, ts / 2 - 8, ts / 2 - 5);
+    // 终端提示符
+    c.fillStyle = '#4ade80';
+    c.fillRect(x + ts / 2 + 4, y + 6, 2, 2);
+    c.fillStyle = '#888';
+    c.fillRect(x + ts / 2 + 7, y + 6, 4, 2);
+    // 光标闪烁
+    if (Math.sin(Date.now() * 0.005) > 0) {
+      c.fillStyle = '#4ade80';
+      c.fillRect(x + ts / 2 + 12, y + 6, 2, 2);
+    }
+    // 第二行
+    c.fillStyle = '#61afef';
+    c.fillRect(x + ts / 2 + 4, y + 9, 5, 2);
+    c.fillStyle = '#c678dd';
+    c.fillRect(x + ts / 2 + 10, y + 9, 3, 2);
+    // 显示器支架
+    c.fillStyle = '#333';
+    c.fillRect(x + ts * 3 / 4 - 1, y + ts / 2, 2, 4);
+    c.fillRect(x + ts * 3 / 4 - 3, y + ts / 2 + 3, 6, 1);
+
+    // ⌨️ 机械键盘 — 桌面中央
+    c.fillStyle = '#2a2a2a';
+    c.fillRect(x + ts / 2 - 7, y + ts / 2 + 1, 14, 5);
+    c.fillStyle = '#333';
+    c.fillRect(x + ts / 2 - 6, y + ts / 2 + 2, 12, 3);
+    // 键帽
+    c.fillStyle = '#444';
+    for (let kx = 0; kx < 4; kx++) {
+      for (let ky = 0; ky < 1; ky++) {
+        c.fillRect(x + ts / 2 - 5 + kx * 3, y + ts / 2 + 2 + ky * 2, 2, 1);
+      }
+    }
+    // WASD 高亮 — 暗示偶尔摸鱼打游戏
+    c.fillStyle = '#e94560';
+    c.fillRect(x + ts / 2 - 2, y + ts / 2 + 2, 2, 1);
+    c.fillRect(x + ts / 2 - 5, y + ts / 2 + 3, 2, 1);
+    c.fillRect(x + ts / 2 - 2, y + ts / 2 + 3, 2, 1);
+    c.fillRect(x + ts / 2 + 1, y + ts / 2 + 3, 2, 1);
+
+    // 🖱️ 鼠标 — 键盘右侧
+    c.fillStyle = '#333';
+    c.fillRect(x + ts / 2 + 8, y + ts / 2 + 1, 4, 5);
+    c.fillStyle = '#444';
+    c.fillRect(x + ts / 2 + 9, y + ts / 2 + 2, 2, 3);
+    // 鼠标滚轮
+    c.fillStyle = '#555';
+    c.fillRect(x + ts / 2 + 9, y + ts / 2 + 1, 1, 1);
+
+    // 🪑 椅背（工位下方）
+    c.fillStyle = '#3a3a4e';
+    c.fillRect(x + ts / 2 - 5, y + ts - 5, 10, 3);
+    c.fillStyle = '#4a4a5e';
+    c.fillRect(x + ts / 2 - 4, y + ts - 4, 8, 2);
   }
 
   private drawPlant(x: number, y: number, ts: number, t: number): void {
@@ -416,9 +497,53 @@ export class Renderer {
     c.fillRect(x + 5, y + 6, ts - 10, 2); c.fillRect(x + 5, y + 10, ts - 14, 2); c.fillRect(x + 5, y + 14, ts - 12, 2);
   }
   private drawCarpet(x: number, y: number, ts: number, tx: number, ty: number): void {
-    const c = this.ctx; c.fillStyle = '#3a3a5a'; c.fillRect(x, y, ts, ts);
-    c.fillStyle = 'rgba(255,255,255,0.04)'; if ((tx + ty) % 2 === 0) c.fillRect(x + 2, y + 2, ts - 4, ts - 4);
-    c.strokeStyle = 'rgba(255,255,255,0.06)'; c.lineWidth = 1; c.strokeRect(x + 1, y + 1, ts - 2, ts - 2);
+    const c = this.ctx;
+    // 办公地毯 — 深蓝色调，与地板形成明显对比
+    c.fillStyle = '#2e2e4e';
+    c.fillRect(x, y, ts, ts);
+
+    // 地毯编织纹理 — 交叉线条模拟真实地毯
+    c.strokeStyle = 'rgba(255,255,255,0.04)';
+    c.lineWidth = 0.5;
+    for (let i = 0; i < 4; i++) {
+      const offset = i * (ts / 4);
+      c.beginPath();
+      c.moveTo(x + offset, y);
+      c.lineTo(x + offset, y + ts);
+      c.stroke();
+      c.beginPath();
+      c.moveTo(x, y + offset);
+      c.lineTo(x + ts, y + offset);
+      c.stroke();
+    }
+
+    // 地毯边缘 — 略深的阴影，模拟地毯厚度
+    c.fillStyle = 'rgba(0,0,0,0.15)';
+    c.fillRect(x, y + ts - 2, ts, 2);
+    c.fillRect(x + ts - 2, y, 2, ts);
+
+    // 地毯接缝 — 如果旁边也是地毯，显示接缝线
+    const map = this.tileMap;
+    const isCarpet = (dx: number, dy: number) => {
+      const nx = tx + dx, ny = ty + dy;
+      return ny >= 0 && ny < map.height && nx >= 0 && nx < map.width && map.tiles[ny][nx] === TileType.Carpet;
+    };
+    if (!isCarpet(-1, 0)) {
+      c.fillStyle = 'rgba(0,0,0,0.2)';
+      c.fillRect(x, y, 2, ts);
+    }
+    if (!isCarpet(1, 0)) {
+      c.fillStyle = 'rgba(0,0,0,0.2)';
+      c.fillRect(x + ts - 2, y, 2, ts);
+    }
+    if (!isCarpet(0, -1)) {
+      c.fillStyle = 'rgba(0,0,0,0.2)';
+      c.fillRect(x, y, ts, 2);
+    }
+    if (!isCarpet(0, 1)) {
+      c.fillStyle = 'rgba(0,0,0,0.2)';
+      c.fillRect(x, y + ts - 2, ts, 2);
+    }
   }
   private drawLamp(x: number, y: number, ts: number, t: number, atm: AtmosphereState): void {
     const c = this.ctx;
