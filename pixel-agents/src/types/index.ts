@@ -7,6 +7,10 @@ export enum TileType {
   Elevator = 22, ReceptionDesk = 23,
   Restroom = 24, Signpost = 25,
   PackageLocker = 26,
+  // 🧑‍💻 工位个人物品
+  DeskCup = 27,       // 桌面水杯
+  DeskPlant = 28,     // 桌面小盆栽
+  DeskPhoto = 29,     // 桌面相框
 }
 
 export enum AgentState {

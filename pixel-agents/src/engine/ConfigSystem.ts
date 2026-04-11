@@ -147,6 +147,20 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
     { type: 'signpost', x: 6, y: 5 },
     // 📦 快递柜 (茶水间旁)
     { type: 'packagelocker', x: 11, y: 9 },
+
+    // 🧑‍💻 工位个人物品 — 每个工位都有自己的特色
+    // 小明的工位 (3,3): 水杯 + 小盆栽
+    { type: 'deskcup', x: 4, y: 3 }, { type: 'deskplant', x: 3, y: 2 },
+    // 老王的工位 (6,3): 相框 + 水杯
+    { type: 'deskphoto', x: 7, y: 3 }, { type: 'deskcup', x: 5, y: 3 },
+    // 小红的工位 (9,3): 小盆栽 + 水杯
+    { type: 'deskplant', x: 9, y: 2 }, { type: 'deskcup', x: 10, y: 3 },
+    // 大壮的工位 (3,6): 水杯
+    { type: 'deskcup', x: 4, y: 6 },
+    // 翠花的工位 (6,6): 小盆栽 + 相框
+    { type: 'deskplant', x: 6, y: 5 }, { type: 'deskphoto', x: 7, y: 6 },
+    // 铁柱的工位 (9,6): 水杯 + 小盆栽
+    { type: 'deskcup', x: 9, y: 5 }, { type: 'deskplant', x: 10, y: 6 },
   ],
 };
 

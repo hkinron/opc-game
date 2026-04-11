@@ -133,7 +133,7 @@ export class Renderer {
         else if (type === TileType.Door) this.drawDoor(px, py, ts);
         else if (type === TileType.Coffee) this.drawCoffee(px, py, ts, time);
         else if (type === TileType.Kanban) this.drawKanbanTile(px, py, ts, time);
-        else if (type === TileType.MeetingTable) this.drawMeetingTable(px, py, ts, time);
+        else if (type === TileType.MeetingTable) this.drawMeetingTable(px, py, ts, time, x, y);
         else if (type === TileType.Microwave) this.drawMicrowave(px, py, ts, time);
         else if (type === TileType.SnackBar) this.drawSnackBar(px, py, ts, time);
         else if (type === TileType.Elevator) this.drawElevator(px, py, ts, time);
@@ -141,6 +141,9 @@ export class Renderer {
         else if (type === TileType.Restroom) this.drawRestroom(px, py, ts);
         else if (type === TileType.Signpost) this.drawSignpost(px, py, ts, time);
         else if (type === TileType.PackageLocker) this.drawPackageLocker(px, py, ts, time);
+        else if (type === TileType.DeskCup) this.drawDeskCup(px, py, ts, time);
+        else if (type === TileType.DeskPlant) this.drawDeskPlant(px, py, ts, time);
+        else if (type === TileType.DeskPhoto) this.drawDeskPhoto(px, py, ts);
       }
     }
 
@@ -458,7 +461,7 @@ export class Renderer {
   // ============================================
   // 新增：会议室长桌
   // ============================================
-  private drawMeetingTable(x: number, y: number, ts: number, t: number): void {
+  private drawMeetingTable(x: number, y: number, ts: number, t: number, tx: number, ty: number): void {
     const c = this.ctx;
     const map = this.tileMap;
     // 深色木纹桌面
@@ -469,24 +472,20 @@ export class Renderer {
     for (let i = 0; i < 3; i++) {
       c.beginPath(); c.moveTo(x + 3, y + 6 + i * 6); c.lineTo(x + ts - 3, y + 6 + i * 6); c.stroke();
     }
-    // 椅子 — 检查四周是否有相邻会议桌
+    // 椅子 — 用瓦片坐标检查四周
     c.fillStyle = '#8b4513';
+    const isNeighbor = (dx: number, dy: number): boolean => {
+      const nx = tx + dx, ny = ty + dy;
+      return ny >= 0 && ny < map.height && nx >= 0 && nx < map.width && map.tiles[ny][nx] === TileType.MeetingTable;
+    };
     // 上方椅子
-    if (y > 0 && (!map.tiles[y - 1] || map.tiles[y - 1][x] !== TileType.MeetingTable)) {
-      c.fillRect(x + ts / 2 - 4, y + 1, 8, 4);
-    }
+    if (!isNeighbor(0, -1)) c.fillRect(x + ts / 2 - 4, y + 1, 8, 4);
     // 下方椅子
-    if (y < map.height - 1 && map.tiles[y + 1] && map.tiles[y + 1][x] !== TileType.MeetingTable) {
-      c.fillRect(x + ts / 2 - 4, y + ts - 5, 8, 4);
-    }
+    if (!isNeighbor(0, 1)) c.fillRect(x + ts / 2 - 4, y + ts - 5, 8, 4);
     // 左侧椅子
-    if (x > 0 && map.tiles[y][x - 1] !== TileType.MeetingTable) {
-      c.fillRect(x + 1, y + ts / 2 - 4, 4, 8);
-    }
+    if (!isNeighbor(-1, 0)) c.fillRect(x + 1, y + ts / 2 - 4, 4, 8);
     // 右侧椅子
-    if (x < map.width - 1 && map.tiles[y][x + 1] !== TileType.MeetingTable) {
-      c.fillRect(x + ts - 5, y + ts / 2 - 4, 4, 8);
-    }
+    if (!isNeighbor(1, 0)) c.fillRect(x + ts - 5, y + ts / 2 - 4, 4, 8);
     // 投影仪光效（桌子中央偶尔闪烁）
     if (Math.sin(t * 0.7) > 0.8) {
       c.fillStyle = 'rgba(100,180,255,0.15)';
@@ -678,6 +677,82 @@ export class Renderer {
     // 顶部标识
     c.fillStyle = '#fff'; c.font = 'bold 6px monospace'; c.textAlign = 'center';
     c.fillText('📦 快递柜', x + ts / 2, y + ts - 1);
+  }
+
+  // ============================================
+  // 🧑‍💻 工位个人物品
+  // ============================================
+
+  // ☕ 桌面水杯 — 颜色各异，偶尔冒热气
+  private drawDeskCup(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+    // 杯子颜色（用位置哈希模拟不同人的杯子）
+    const cupColors = ['#e94560', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22'];
+    const colorIdx = ((x * 7 + y * 13) | 0) % cupColors.length;
+    c.fillStyle = cupColors[colorIdx];
+    // 杯身
+    c.fillRect(x + ts / 2 - 5, y + ts / 2 - 2, 10, ts / 2 - 4);
+    // 杯口
+    c.fillStyle = '#f0f0f0';
+    c.fillRect(x + ts / 2 - 6, y + ts / 2 - 4, 12, 3);
+    // 杯内液体
+    c.fillStyle = '#8b6914';
+    c.fillRect(x + ts / 2 - 4, y + ts / 2 - 1, 8, 3);
+    // 杯把
+    c.fillStyle = cupColors[colorIdx];
+    c.fillRect(x + ts / 2 + 5, y + ts / 2, 3, 6);
+    c.fillStyle = '#4a4a6a';
+    c.fillRect(x + ts / 2 + 6, y + ts / 2 + 1, 2, 4);
+    // 偶尔冒热气
+    if (Math.sin(t * 1.5 + x) > 0.6) {
+      c.fillStyle = 'rgba(255,255,255,0.4)';
+      c.fillRect(x + ts / 2 - 1, y + ts / 2 - 8, 2, 4);
+      c.fillRect(x + ts / 2 + 2, y + ts / 2 - 6, 1, 3);
+    }
+  }
+
+  // 🌿 桌面小盆栽 — 打工人最爱的桌面装饰
+  private drawDeskPlant(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+    const sw = Math.sin(t * 1.5 + x * 0.5) * 1;
+    // 花盆
+    c.fillStyle = '#8b6914';
+    c.fillRect(x + ts / 2 - 5, y + ts / 2 + 2, 10, 6);
+    c.fillStyle = '#a07820';
+    c.fillRect(x + ts / 2 - 6, y + ts / 2 + 1, 12, 2);
+    // 植物主体
+    c.fillStyle = '#4aaa3a';
+    c.fillRect(x + ts / 2 - 1 + sw * 0.3, y + ts / 4, 3, ts / 2 - 2);
+    // 叶子
+    c.fillStyle = '#5abb4a';
+    c.fillRect(x + ts / 2 - 6 + sw, y + ts / 3, 4, 3);
+    c.fillRect(x + ts / 2 + 3 + sw * 0.5, y + ts / 3 + 4, 4, 3);
+    c.fillRect(x + ts / 2 - 4 + sw * 0.8, y + ts / 3 + 7, 3, 2);
+    // 顶端新芽
+    c.fillStyle = '#7acc5a';
+    c.fillRect(x + ts / 2 + sw * 0.5, y + ts / 4 - 3, 3, 4);
+  }
+
+  // 🖼️ 桌面相框 — 每个人的私人角落
+  private drawDeskPhoto(x: number, y: number, ts: number): void {
+    const c = this.ctx;
+    // 相框外框
+    c.fillStyle = '#6b4423';
+    c.fillRect(x + ts / 2 - 6, y + ts / 3 - 1, 12, ts / 3 + 2);
+    // 相框内框
+    c.fillStyle = '#d4a83a';
+    c.fillRect(x + ts / 2 - 5, y + ts / 3, 10, ts / 3);
+    // 照片内容（模拟风景：蓝天 + 绿地）
+    c.fillStyle = '#87ceeb';
+    c.fillRect(x + ts / 2 - 4, y + ts / 3 + 1, 8, ts / 6 - 1);
+    c.fillStyle = '#90ee90';
+    c.fillRect(x + ts / 2 - 4, y + ts / 2, 8, ts / 6 - 2);
+    // 小太阳
+    c.fillStyle = '#ffd700';
+    c.fillRect(x + ts / 2 + 1, y + ts / 3 + 2, 2, 2);
+    // 相框支架
+    c.fillStyle = '#5c3a1e';
+    c.fillRect(x + ts / 2 - 2, y + ts * 2 / 3, 4, 2);
   }
 
   // ============================================

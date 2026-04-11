@@ -28,6 +28,10 @@ export const TILE_CONFIG: Record<TileType, TileConfig> = {
   [TileType.Restroom]:      { name: 'Restroom',      color: '#4a7a8a', borderColor: '#7ab8c8', walkable: false },
   [TileType.Signpost]:      { name: 'Signpost',      color: '#c0942a', borderColor: '#f0d060', walkable: false },
   [TileType.PackageLocker]: { name: 'PackageLocker', color: '#e67e22', borderColor: '#f39c12', walkable: false },
+  // 🧑‍💻 工位个人物品
+  [TileType.DeskCup]:    { name: 'DeskCup',    color: '#e94560', borderColor: '#ff6b6b', walkable: false },
+  [TileType.DeskPlant]:  { name: 'DeskPlant',  color: '#4aaa3a', borderColor: '#8b6914', walkable: false },
+  [TileType.DeskPhoto]:  { name: 'DeskPhoto',  color: '#fbbf24', borderColor: '#d4a83a', walkable: false },
 };
 
 export const KANBAN_BOARD = { x: 4, y: 1, width: 4 };
@@ -42,6 +46,7 @@ const FURNITURE_MAP: Record<string, TileType> = {
   elevator: TileType.Elevator, receptiondesk: TileType.ReceptionDesk,
   restroom: TileType.Restroom, signpost: TileType.Signpost,
   packagelocker: TileType.PackageLocker,
+  deskcup: TileType.DeskCup, deskplant: TileType.DeskPlant, deskphoto: TileType.DeskPhoto,
 };
 
 export class TileMap {
