@@ -135,9 +135,9 @@ const OBJECT_INTERACTIONS: Record<string, InteractableObject[]> = {
     nearbyTile: { x: 14, y: 10 },
   }],
   umbrella: [{
-    type: 'umbrella', x: 7, y: 11, label: '雨伞架', emoji: '☂️',
+    type: 'umbrella', x: 4, y: 11, label: '雨伞架', emoji: '☂️',
     actionText: '放/拿雨伞...', actionDuration: 3, actionState: AgentState.Waiting,
-    nearbyTile: { x: 8, y: 11 },
+    nearbyTile: { x: 5, y: 11 },
   }],
   attendancemachine: [{
     type: 'attendancemachine', x: 13, y: 11, label: '打卡机', emoji: '📱',
@@ -163,6 +163,11 @@ const OBJECT_INTERACTIONS: Record<string, InteractableObject[]> = {
     type: 'serverrack', x: 1, y: 3, label: '服务器机房', emoji: '🖥️',
     actionText: '紧急修复服务器...', actionDuration: 8, actionState: AgentState.Typing,
     nearbyTile: { x: 3, y: 3 },
+  }],
+  bulletinboard: [{
+    type: 'bulletinboard', x: 9, y: 7, label: '公告栏', emoji: '📌',
+    actionText: '看看有什么通知...', actionDuration: 5, actionState: AgentState.Reading,
+    nearbyTile: { x: 9, y: 8 },
   }],
 };
 

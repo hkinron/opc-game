@@ -95,7 +95,14 @@ export class Game {
   private eventTimer = 0;
   private bossVisibleLast = false;
   private standupTriggered = false;
+  private deliveryTriggered = false;
+  private fridayEarlyLeaveTriggered = false;
+  private morningAttendanced: Set<string> = new Set();
   private gossipCooldown: Set<string> = new Set();
+  private lateArrivalsTriggered = false; // 🏃 迟到冲刺 — 每天只触发一次
+  private leavedAgents: Set<string> = new Set(); // 🚶 已下班离开的 agent
+  private lateArrivals = new Set<string>(); // 🏃 记录今天已经迟到的 agent
+  private leavingAgents = new Set<string>(); // 🚶 记录正在下班离开的 agent
   private konamiBuffer: string = '';
   private konamiCode = 'ArrowUpArrowUpArrowDownArrowDownArrowLeftArrowRightArrowLeftArrowRightKeyBKeyA';
 
@@ -351,6 +358,119 @@ export class Game {
     // 过了站会时间重置标志
     if (!isStandupTime) { this.standupTriggered = false; }
 
+    // 📱 上班打卡 — 早上工作时间，还没打卡的 agent 去打卡机打卡
+    // 中国时间 8:00-10:00 (UTC 0-2)，每个 agent 只打一次
+    const isMorningArrival = !isWeekend && chinaHour >= 0 && chinaHour < 2;
+    if (isMorningArrival) {
+      for (const agent of this.agents) {
+        if (this.morningAttendanced.has(agent.config.name)) continue;
+        if (agent.state === AgentState.Walking) continue;
+        if (Math.random() < 0.08 && this.tileMap.isWalkable(12, 11)) {
+          this.morningAttendanced.add(agent.config.name);
+          agent.walkTo(12, 11, this.tileMap);
+          const clockInMessages = [
+            '📱 滴！打卡成功！',
+            '📱 准时打卡，完美！',
+            '📱 差点迟到...还好赶上了',
+            '📱 打卡！又是元气满满的一天（并不）',
+            '📱 滴——本月全勤 +1',
+          ];
+          agent.speechBubble = clockInMessages[Math.floor(Math.random() * clockInMessages.length)];
+          agent.speechTimer = 4;
+          setTimeout(() => {
+            if (agent.state !== AgentState.Walking) {
+              agent.setState(AgentState.Waiting);
+              agent.speechBubble = '✅ 打完卡了，去工位';
+              agent.speechTimer = 3;
+              setTimeout(() => {
+                if (agent.state !== AgentState.Walking) {
+                  agent.walkTo(agent.config.deskX, agent.config.deskY + 1, this.tileMap);
+                  setTimeout(() => {
+                    if (agent.state !== AgentState.Walking) {
+                      agent.setState(AgentState.Typing);
+                      agent.speechBubble = '💻 开工！';
+                      agent.speechTimer = 5;
+                    }
+                  }, 3000);
+                }
+              }, 3000);
+            }
+          }, 5000);
+        }
+      }
+    }
+    // 过了早上时段重置打卡记录
+    if (!isMorningArrival) { this.morningAttendanced.clear(); }
+    // 🌅 新的一天重置 — 中国时间凌晨（UTC 16-24），重置所有每日标志
+    const isNewDay = chinaHour >= 0 && chinaHour < 1;
+    if (isNewDay) {
+      this.lateArrivalsTriggered = false;
+      this.leavedAgents.clear();
+      for (const a of this.agents) { a.hasLeftOffice = false; a.hasArrivedToday = false; }
+    }
+
+    // 🏃 迟到冲刺 — 中国时间 9:30-10:00 (UTC 1:30-2:00)，有 agent 迟到慌张跑进来
+    const isLateArrivalTime = !isWeekend && chinaHour >= 1 && chinaHour < 2; // UTC 1-2 = China 9-10
+    if (isLateArrivalTime && !this.lateArrivalsTriggered) {
+      // 9:30 后才触发（半小时偏移），选一个还没到的 agent
+      const now = new Date();
+      const chinaMinute = now.getUTCMinutes() + 30;
+      if (chinaMinute >= 30 && Math.random() < 0.4) {
+        this.lateArrivalsTriggered = true;
+        // 选一个还没到工位的 agent（hasArrivedToday = false 或刚创建的）
+        const lateAgent = this.agents.find(a =>
+          a.state === AgentState.Idle && a.stateTimer < 10 && a.state !== AgentState.Walking
+        );
+        if (lateAgent && this.tileMap.isWalkable(8, 12)) {
+          // 从电梯口出现，慌张跑向工位
+          lateAgent.x = 8;
+          lateAgent.y = 12;
+          lateAgent.hasArrivedToday = true;
+          const lateMessages = [
+            '😱 迟到了迟到了！！！闹钟没响！',
+            '🏃 路上堵车堵死了...快迟到了！',
+            '😰 睡过头了！！！老板在吗？！',
+            '🏃‍♂️ 地铁晚点了！要扣全勤了！',
+            '😱 完了完了，9:30 了！！！',
+            '🏃 快跑快跑！打卡机等我！',
+          ];
+          lateAgent.speechBubble = lateMessages[Math.floor(Math.random() * lateMessages.length)];
+          lateAgent.speechTimer = 6;
+          // 先冲向打卡机
+          setTimeout(() => {
+            if (lateAgent.state !== AgentState.Walking) {
+              lateAgent.walkTo(12, 11, this.tileMap);
+              lateAgent.speechBubble = '📱 赶紧先打卡！！！';
+              lateAgent.speechTimer = 4;
+              // 打完卡再冲回工位
+              setTimeout(() => {
+                if (lateAgent.state !== AgentState.Walking) {
+                  lateAgent.speechBubble = '✅ 打上了！溜了溜了';
+                  lateAgent.speechTimer = 3;
+                  setTimeout(() => {
+                    if (lateAgent.state !== AgentState.Walking) {
+                      lateAgent.walkTo(lateAgent.config.deskX, lateAgent.config.deskY + 1, this.tileMap);
+                      setTimeout(() => {
+                        if (lateAgent.state !== AgentState.Walking) {
+                          lateAgent.setState(AgentState.Typing);
+                          lateAgent.speechBubble = '😅 还好赶上了...吓死我了';
+                          lateAgent.speechTimer = 8;
+                        }
+                      }, 3000);
+                    }
+                  }, 3000);
+                }
+              }, 4000);
+            }
+          }, 1000);
+          // 全局事件通知
+          this.renderer.triggerEvent('🏃 有人迟到了！慌张冲进门！', 6);
+        }
+      }
+    }
+    // 过了迟到时段重置（但只触发一次）
+    if (!isLateArrivalTime && chinaHour >= 2) { this.lateArrivalsTriggered = true; }
+
     // 🖥️ 服务器机房行为 — 工作时间偶尔有 agent 被叫去修服务器
     if (!isWeekend && chinaHour >= 1 && chinaHour < 11 && Math.random() < 0.06) {
       const available_agent = this.agents.find(a =>
@@ -477,6 +597,92 @@ export class Game {
       }
     }
 
+    // 🛵 外卖到了 — 午休时随机触发，一个 agent 去快递柜取外卖
+    if (isLunchTime && !this.deliveryTriggered && Math.random() < 0.08) {
+      this.deliveryTriggered = true;
+      const deliveryMessages = [
+        '🛵 "外卖到了！我去拿！"',
+        '🍔 "我的黄焖鸡到了！"',
+        '🍜 "螺蛳粉到了！谁要吃？"',
+        '🥡 "奶茶到了！三分糖去冰！"',
+        '🍕 "披萨到了！大家快来！"',
+        '🍱 "便当到了！在快递柜！"',
+      ];
+      const lockerAgent = this.agents.find(a =>
+        a.state === AgentState.Idle && !a.currentTask
+      );
+      if (lockerAgent && this.tileMap.isWalkable(15, 10)) {
+        lockerAgent.walkTo(15, 10, this.tileMap);
+        lockerAgent.speechBubble = deliveryMessages[Math.floor(Math.random() * deliveryMessages.length)];
+        lockerAgent.speechTimer = 5;
+        setTimeout(() => {
+          if (lockerAgent.state !== AgentState.Walking) {
+            lockerAgent.setState(AgentState.Waiting);
+            lockerAgent.speechBubble = '📦 取到外卖了！';
+            lockerAgent.speechTimer = 3;
+            // 取完回工位吃
+            setTimeout(() => {
+              if (lockerAgent.state !== AgentState.Walking) {
+                lockerAgent.walkTo(lockerAgent.config.deskX, lockerAgent.config.deskY + 1, this.tileMap);
+                setTimeout(() => {
+                  if (lockerAgent.state !== AgentState.Walking) {
+                    lockerAgent.setState(AgentState.Idle);
+                    lockerAgent.speechBubble = '🍱 开吃了！';
+                    lockerAgent.speechTimer = 8;
+                  }
+                }, 4000);
+              }
+            }, 4000 + Math.random() * 3000);
+          }
+        }, 5000);
+      }
+      this.renderer.triggerEvent('🛵 外卖到了！有人去拿吗？', 6);
+    }
+    // 过了午休时间重置外卖标志
+    if (!isLunchTime) { this.deliveryTriggered = false; }
+
+    // 🏃 周五提前溜 — 周五下午中国时间 16:00 后，部分 agent 收拾东西溜了
+    const isFridayEarlyLeave = new Date().getUTCDay() === 5 && chinaHour >= 8 && chinaHour < 10;
+    if (isFridayEarlyLeave && !this.fridayEarlyLeaveTriggered && Math.random() < 0.15) {
+      this.fridayEarlyLeaveTriggered = true;
+      const leaver = this.agents.find(a =>
+        (a.state === AgentState.Typing || a.state === AgentState.摸鱼中) &&
+        a.state !== AgentState.Walking
+      );
+      if (leaver && this.tileMap.isWalkable(8, 11)) {
+        leaver.speechBubble = '🎉 周末啦！收拾东西溜了！';
+        leaver.speechTimer = 4;
+        setTimeout(() => {
+          if (leaver.state !== AgentState.Walking) {
+            leaver.walkTo(8, 11, this.tileMap); // 走到电梯口
+            leaver.speechBubble = '👋 拜拜！下周见！';
+            leaver.speechTimer = 3;
+            setTimeout(() => {
+              if (leaver.state !== AgentState.Walking) {
+                // 假装进了电梯，然后又回工位摸鱼
+                leaver.speechBubble = '😎 其实没走，回工位继续摸';
+                leaver.speechTimer = 5;
+                setTimeout(() => {
+                  if (leaver.state !== AgentState.Walking) {
+                    leaver.walkTo(leaver.config.deskX, leaver.config.deskY + 1, this.tileMap);
+                    setTimeout(() => {
+                      if (leaver.state !== AgentState.Walking) {
+                        leaver.setState(AgentState.摸鱼中);
+                        leaver.speechBubble = '🐟 心早已放假，人还在工位';
+                        leaver.speechTimer = 8;
+                      }
+                    }, 4000);
+                  }
+                }, 3000);
+              }
+            }, 5000);
+          }
+        }, 2000);
+        this.renderer.triggerEvent('🏃 有人提前溜了！周五下午谁还干活！', 6);
+      }
+    }
+    if (!isFridayEarlyLeave) { this.fridayEarlyLeaveTriggered = false; }
+
     for (const agent of this.agents) {
       if (this.agentTasks.has(agent.config.name) && agent.state === AgentState.摸鱼中) {
         // 加班时间：更有可能回去工作
@@ -489,6 +695,39 @@ export class Game {
           agent.setState(AgentState.Typing);
           agent.speechBubble = '😤 怎么还没下班...';
           agent.speechTimer = 5;
+        }
+        // 🌇 下班渐空 — 中国时间 18:00 后，agents 陆续收拾东西离开
+        const isLeavingTime = chinaHour >= 18 && chinaHour < 22;
+        if (isLeavingTime && !this.leavedAgents.has(agent.config.name) && agent.state !== AgentState.Walking) {
+          // 离开概率随时间递增：18点 ~5%, 19点 ~12%, 20点 ~20%, 21点 ~30%
+          const leaveChance = (chinaHour - 18) * 0.07 + 0.05;
+          if (Math.random() < leaveChance) {
+            this.leavedAgents.add(agent.config.name);
+            agent.hasLeftOffice = true;
+            const leaveMsgs = [
+              '👋 下班啦！明天见！',
+              '🎉 终于下班了！冲！',
+              '🏃 溜了溜了，拜拜！',
+              '😮‍💨 终于可以回家了...',
+              '🚶 走啦走啦，今天好累',
+              '🎮 下班打游戏去！',
+              '🍜 下班！先去吃顿好的！',
+            ];
+            agent.speechBubble = leaveMsgs[Math.floor(Math.random() * leaveMsgs.length)];
+            agent.speechTimer = 5;
+            setTimeout(() => {
+              if (agent.hasLeftOffice) agent.walkTo(8, 12, this.tileMap);
+              setTimeout(() => {
+                if (agent.hasLeftOffice) {
+                  agent.speechBubble = '👋 Bye~';
+                  agent.speechTimer = 3;
+                  setTimeout(() => {
+                    if (agent.hasLeftOffice) { agent.x = -10; agent.y = -10; }
+                  }, 3000);
+                }
+              }, 5000);
+            }, 2000);
+          }
         }
       } else if (this.agentTasks.has(agent.config.name) && agent.state === AgentState.Typing) {
         // 下午犯困：摸鱼概率翻倍
@@ -568,9 +807,10 @@ export class Game {
   // 🍵 茶水间闲聊：两个 agent 同时出现在茶水间时触发专属 gossip
   private checkTeaRoomGossip(): void {
     const teaRoomSpots = [
-      { x: 15, y: 8 }, { x: 14, y: 9 }, { x: 13, y: 8 }, // 茶水间外围可走区域
-      { x: 15, y: 10 }, // 饮水机旁
-      { x: 8, y: 7 }, { x: 9, y: 7 }, // 微波炉附近
+      { x: 13, y: 8 }, { x: 14, y: 8 }, { x: 15, y: 8 }, { x: 16, y: 8 }, { x: 17, y: 8 }, // 茶水间前排
+      { x: 13, y: 9 }, { x: 14, y: 9 }, { x: 15, y: 9 }, { x: 16, y: 9 }, // 茶水间中排
+      { x: 13, y: 10 }, { x: 14, y: 10 }, { x: 15, y: 10 }, { x: 16, y: 10 }, // 茶水间后排
+      { x: 10, y: 9 }, // 饮水机旁
     ];
 
     const inTeaRoom = this.agents.filter(a => {
@@ -607,10 +847,10 @@ export class Game {
   // 📽️ 会议室检测 — agents 聚集会议室时触发投影仪效果
   private checkMeetingRoom(): void {
     const meetingSpots = [
-      { x: 13, y: 2 }, { x: 13, y: 3 }, { x: 13, y: 4 },
-      { x: 14, y: 1 }, { x: 15, y: 1 }, { x: 16, y: 1 },
-      { x: 17, y: 2 }, { x: 17, y: 3 },
-      { x: 14, y: 4 }, { x: 15, y: 4 }, { x: 16, y: 4 },
+      // 会议室走道区域 — 围绕会议桌 (x:3-5, y:1-2)
+      { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 6, y: 1 }, { x: 7, y: 1 },
+      { x: 1, y: 2 }, { x: 2, y: 2 },
+      { x: 1, y: 3 }, { x: 2, y: 3 }, { x: 7, y: 2 }, { x: 7, y: 3 },
     ];
 
     const inMeeting = this.agents.filter(a => {
@@ -651,7 +891,7 @@ export class Game {
   reset(): void {
     this.agents = []; this.nextAgentIndex = 0; this.simTimer = 0; this.taskTimer = 0;
     this.agentTasks.clear(); this.completedTasks.clear(); this.eventTimer = 0;
-    this.standupTriggered = false;
+    this.standupTriggered = false; this.deliveryTriggered = false;
     this.addAgent(); this.addAgent(); this.addAgent();
   }
 
@@ -666,12 +906,26 @@ export class Game {
     const timeEmoji = atm.timeOfDay === 'night' ? '🌙' : atm.timeOfDay === 'dawn' ? '🌅' : atm.timeOfDay === 'evening' ? '🌇' : '☀️';
     const weatherEmoji = atm.weather === 'rain' ? '🌧️' : atm.weather === 'snow' ? '❄️' : atm.weather === 'cloudy' ? '☁️' : '🌤️';
     const bossStatus = this.boss.isVisible() ? '<span style="color:#e94560;margin-right:6px">👔 老板在！</span>' : '';
+
+    // 📊 周末倒计时 — 距离周六还有几天
+    const chinaDayOfWeek = (new Date().getUTCDay() + 8) % 7; // 1=周一 ... 6=周六, 0=周日
+    let weekendInfo = '';
+    if (chinaDayOfWeek === 6 || chinaDayOfWeek === 0) {
+      weekendInfo = '<span style="color:#fbbf24;margin-right:8px">🎉 周末愉快！</span>';
+    } else {
+      const daysUntilWeekend = 6 - chinaDayOfWeek;
+      const weekendLabel = daysUntilWeekend === 1 ? '明天就周末！' : `还有${daysUntilWeekend}天周末`;
+      const weekendEmoji = daysUntilWeekend <= 2 ? '🤩' : daysUntilWeekend <= 3 ? '😊' : '💪';
+      weekendInfo = `<span style="color:#94a3b8;margin-right:8px">${weekendEmoji} ${weekendLabel}</span>`;
+    }
     this.statusBar.innerHTML = `
       <span style="color:#e94560;margin-right:4px">[${mode}]</span>
       <span style="color:#94a3b8;margin-right:6px">${timeEmoji}${weatherEmoji}</span>
       ${bossStatus}
+      ${weekendInfo}
       <span style="color:#94a3b8;margin-right:8px">📋 ${stats.todo}→${stats.inProgress}→${stats.review}→${stats.done}</span>
-    ` + this.agents.map(a => {
+      ${this.leavedAgents.size > 0 ? `<span style="color:#f59e0b;margin-right:8px">🚶 ${this.leavedAgents.size}人已下班</span>` : ''}
+    ` + this.agents.filter(a => !a.hasLeftOffice).map(a => {
       const sc = a.state === AgentState.Typing || a.state === AgentState.Reading ? 'working' : a.state === AgentState.Waiting ? 'waiting' : a.state === AgentState.Error ? 'error' : a.state === AgentState.趴桌睡觉 ? 'idle' : 'idle';
       return `<div class="agent-status"><span class="status-dot ${sc}"></span><span>${a.config.role}</span><span>${emoji[a.state]}</span><span>${a.config.name}</span></div>`;
     }).join('');

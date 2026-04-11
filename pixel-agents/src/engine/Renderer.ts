@@ -153,9 +153,9 @@ export class Renderer {
         else if (type === TileType.BulletinBoard) this.drawBulletinBoard(px, py, ts, time);
         else if (type === TileType.VendingMachine) this.drawVendingMachine(px, py, ts, time);
       else if (type === TileType.PhoneBooth) this.drawPhoneBooth(px, py, ts, time);
-        else if (type === TileType.ServerRack) this.drawServerRack(px, py, ts, time, tx, ty);
-        else if (type === TileType.ServerRoomGlass) this.drawServerRoomGlass(px, py, ts, time, tx, ty);
-        else if (type === TileType.ZoneLabel) this.drawZoneLabel(px, py, ts, time, tx, ty);
+        else if (type === TileType.ServerRack) this.drawServerRack(px, py, ts, time, x, y);
+        else if (type === TileType.ServerRoomGlass) this.drawServerRoomGlass(px, py, ts, time, x, y);
+        else if (type === TileType.ZoneLabel) this.drawZoneLabel(px, py, ts, time, x, y);
       }
     }
 
@@ -182,8 +182,8 @@ export class Renderer {
     // Ambient particles
     this.emitAmbientParticles(ts, time, atm);
 
-    // Agents (sorted by Y for depth)
-    [...agents].sort((a, b) => a.y - b.y).forEach(a => {
+    // Agents (sorted by Y for depth) — skip agents who've left
+    [...agents].filter(a => !a.hasLeftOffice).sort((a, b) => a.y - b.y).forEach(a => {
       this.emitStateParticles(a, ts, time);
       this.drawAgent(a, ts, time);
     });
@@ -267,39 +267,52 @@ export class Renderer {
   // ---- Floor & Wall ----
   private drawFloor(x: number, y: number, ts: number, tx: number, ty: number, _t: number): void {
     const c = this.ctx;
-    // Warm office floor — subtle wood tile look
-    c.fillStyle = (tx + ty) % 2 === 0 ? '#4e4e72' : '#48486a';
+    // 两房间地板 — 左房间暖米色，右房间暖棕色 (参考 pablodelucca/pixel-agents)
+    const isLeftRoom = tx < 10;
+    const isRightRoom = tx >= 11;
+    const isCorridor = tx === 10;
+    let base1: string, base2: string, edgeColor: string;
+    if (isLeftRoom) {
+      base1 = '#c8b090'; base2 = '#bca484'; edgeColor = 'rgba(140,120,90,0.15)';
+    } else if (isRightRoom) {
+      base1 = '#8a7058'; base2 = '#7e664e'; edgeColor = 'rgba(90,70,50,0.15)';
+    } else if (isCorridor) {
+      base1 = '#5a5068'; base2 = '#524860'; edgeColor = 'rgba(70,60,80,0.15)';
+    } else {
+      base1 = '#4e4e72'; base2 = '#48486a'; edgeColor = 'rgba(0,0,0,0.1)';
+    }
+    // Checkerboard pattern
+    c.fillStyle = (tx + ty) % 2 === 0 ? base1 : base2;
     c.fillRect(x, y, ts, ts);
     // Subtle grain
-    c.strokeStyle = 'rgba(255,255,255,0.02)';
+    c.strokeStyle = 'rgba(255,255,255,0.03)';
     c.lineWidth = 0.5;
-    for (let i = 0; i < 3; i++) {
-      const gy = y + 4 + i * (ts / 3);
+    for (let i = 0; i < 2; i++) {
+      const gy = y + ts * 0.35 + i * (ts * 0.3);
       c.beginPath(); c.moveTo(x + 2, gy); c.lineTo(x + ts - 2, gy); c.stroke();
     }
-    // Edge
-    c.strokeStyle = 'rgba(0,0,0,0.1)';
+    // Tile edge
+    c.strokeStyle = edgeColor;
+    c.lineWidth = 0.5;
     c.strokeRect(x + 0.5, y + 0.5, ts - 1, ts - 1);
   }
 
   private drawWall(x: number, y: number, ts: number, tx: number, ty: number): void {
     const c = this.ctx;
-    // Dark wall with subtle depth
-    const gradient = c.createLinearGradient(x, y, x, y + ts);
-    gradient.addColorStop(0, '#3a3a52');
-    gradient.addColorStop(1, '#2a2a3e');
-    c.fillStyle = gradient;
+    // 墙体 — 深色砖墙 (参考 pablodelucca/pixel-agents 风格)
+    c.fillStyle = '#3a3a52';
     c.fillRect(x, y, ts, ts);
-    // Top highlight
-    c.fillStyle = 'rgba(255,255,255,0.06)';
+    // Top highlight (天花板/踢脚线边缘)
+    c.fillStyle = 'rgba(255,255,255,0.08)';
     c.fillRect(x, y, ts, 2);
     // Bottom shadow
-    c.fillStyle = 'rgba(0,0,0,0.15)';
+    c.fillStyle = 'rgba(0,0,0,0.2)';
     c.fillRect(x, y + ts - 2, ts, 2);
-    // Subtle brick stagger
-    c.strokeStyle = 'rgba(255,255,255,0.02)';
+    // 砖纹 — 交错排列 (参考项目的砖块拼接效果)
+    c.strokeStyle = 'rgba(255,255,255,0.04)';
     c.lineWidth = 0.5;
     c.beginPath();
+    // 水平中线
     c.moveTo(x, y + ts / 2);
     c.lineTo(x + ts, y + ts / 2);
     if (ty % 2 === 0) {
@@ -308,7 +321,16 @@ export class Renderer {
       c.moveTo(x + ts / 4, y); c.lineTo(x + ts / 4, y + ts / 2);
       c.moveTo(x + ts * 3 / 4, y); c.lineTo(x + ts * 3 / 4, y + ts / 2);
     }
+    if (ty % 2 === 0) {
+      c.moveTo(x + ts / 4, y + ts / 2); c.lineTo(x + ts / 4, y + ts);
+      c.moveTo(x + ts * 3 / 4, y + ts / 2); c.lineTo(x + ts * 3 / 4, y + ts);
+    } else {
+      c.moveTo(x + ts / 2, y + ts / 2); c.lineTo(x + ts / 2, y + ts);
+    }
     c.stroke();
+    // 表面纹理
+    c.fillStyle = 'rgba(255,255,255,0.02)';
+    c.fillRect(x + 3, y + 3, ts - 6, 1);
 
     // 🧯 消防栓 — 每隔一段距离出现一个
     if (tx > 0 && tx < this.tileMap.width - 1 && ty === 0 && tx % 6 === 3) {

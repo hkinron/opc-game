@@ -51,6 +51,10 @@ export class Agent {
   // Wander cooldown — seconds before agent considers wandering again
   private wanderCooldown: number = 0;
 
+  // 🏃 迟到 / 🌆 下班离开
+  hasArrivedToday = false; // 今天是否已经到达工位
+  hasLeftOffice = false;   // 今天是否已下班离开
+
   private static nextId = 1;
 
   constructor(config: AgentConfig, map: TileMap) {
@@ -60,6 +64,7 @@ export class Agent {
     this.y = config.deskY + 1;
     this.state = AgentState.Idle;
     this.map = map;
+    this.hasArrivedToday = true; // 默认已经在工位（除非被迟到逻辑覆盖）
   }
 
   update(dt: number, map: TileMap): void {
