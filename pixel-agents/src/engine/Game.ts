@@ -36,6 +36,25 @@ const RANDOM_EVENTS = [
   { msg: '📋 "下班前能搞定吗？"', weight: 2 },
 ];
 
+// 🍵 茶水间专属闲聊 — 两个 agent 在茶水间相遇时触发
+const TEA_ROOM_GOSSIP = [
+  { a: '你中午吃啥？', b: '外卖，天天吃那家都吃腻了 🥡' },
+  { a: '咖啡机又坏了...', b: '没事，茶水间的微波炉还能用 😂' },
+  { a: '冰箱里谁的外卖？', b: '上周的吧，都长毛了 🤢' },
+  { a: '零食柜空了！', b: '行政说下周补货，先忍忍 🍪' },
+  { a: '下午那个会你去吗？', b: '能不去就不去，假装忙 🤫' },
+  { a: '你昨天加班到几点？', b: '十一点，狗命一条 🐕' },
+  { a: '听说了吗？隔壁组又裁员了', b: '……别说了，心慌 💀' },
+  { a: '我写了个脚本自动回消息', b: '教教我！我也想摸鱼 🤖' },
+  { a: '这周能准时下班吗？', b: '你认真的？🤣' },
+  { a: '饮水机换了新牌子', b: '喝着跟之前一样，都是自来水 😅' },
+  { a: '你觉得新来的产品怎么样？', b: '不提了，提了就想辞职' },
+  { a: '今天太阳好大', b: '嗯，适合请假出去玩 🌞' },
+  { a: '我的年假还有5天', b: '我还有12天，但根本休不了 😮‍💨' },
+  { a: '你养猫了吗？', b: '养了，每天回家它就坐在门口等我 🐱' },
+  { a: '想转行做独立开发', b: '先把你这个项目做完再说吧 💻' },
+];
+
 export interface GameOptions { wsUrl?: string; theme?: string; layout?: string; skins?: string; }
 
 export class Game {
@@ -65,6 +84,7 @@ export class Game {
   private eventTimer = 0;
   private bossVisibleLast = false;
   private standupTriggered = false;
+  private gossipCooldown: Set<string> = new Set();
   private konamiBuffer: string = '';
   private konamiCode = 'ArrowUpArrowUpArrowDownArrowDownArrowLeftArrowRightArrowLeftArrowRightKeyBKeyA';
 
@@ -194,6 +214,7 @@ export class Game {
     }
 
     this.interactions.checkAgentProximity(this.agents);
+    this.checkTeaRoomGossip();
 
     if (this.useSimulation) {
       this.taskTimer += dt;
@@ -411,6 +432,45 @@ export class Game {
         agent.setState(AgentState.Reading); agent.speechBubble = '📖 看文档...'; agent.speechTimer = 6;
       } else if (agent.state === AgentState.摸鱼中 && rand < 0.55) {
         agent.setState(AgentState.Waiting); agent.speechBubble = '🤔 想想...'; agent.speechTimer = 5;
+      }
+    }
+  }
+
+  // 🍵 茶水间闲聊：两个 agent 同时出现在茶水间时触发专属 gossip
+  private checkTeaRoomGossip(): void {
+    const teaRoomSpots = [
+      { x: 16, y: 8 }, { x: 17, y: 8 }, { x: 17, y: 9 },
+      { x: 16, y: 10 }, { x: 15, y: 10 }, { x: 18, y: 8 },
+      { x: 14, y: 8 }, // 茶水间区域
+    ];
+
+    const inTeaRoom = this.agents.filter(a => {
+      return teaRoomSpots.some(s => Math.abs(a.x - s.x) <= 1.5 && Math.abs(a.y - s.y) <= 1.5);
+    });
+
+    if (inTeaRoom.length >= 2) {
+      const pairKey = inTeaRoom.slice(0, 2).map(a => a.id).sort().join('-');
+      const cooldownKey = `tea-${pairKey}`;
+      const now = Date.now();
+      const cooldown = this.gossipCooldown.get(cooldownKey) || 0;
+
+      if (now > cooldown) {
+        const gossip = TEA_ROOM_GOSSIP[Math.floor(Math.random() * TEA_ROOM_GOSSIP.length)];
+        const [a, b] = inTeaRoom;
+
+        a.speechBubble = `${b.config.name}: "${gossip.a}"`;
+        a.speechTimer = 5;
+        a.facing = a.x < b.x ? 'right' : 'left';
+
+        setTimeout(() => {
+          if (b.state !== AgentState.Walking) {
+            b.speechBubble = `${a.config.name}: "${gossip.b}"`;
+            b.speechTimer = 5;
+            b.facing = b.x < a.x ? 'right' : 'left';
+          }
+        }, 2000);
+
+        this.gossipCooldown.set(cooldownKey, now + 45000);
       }
     }
   }

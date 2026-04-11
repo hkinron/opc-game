@@ -194,6 +194,14 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
     // 会议室时钟
     { type: 'clock', x: 13, y: 1 },
 
+    // ===== 🌿 团队区域分隔带 (y=7) =====
+    // 用绿植把上下两排工位隔开，像真实办公室里不同团队的分区
+    // 前端团队区 (左)
+    { type: 'plant', x: 5, y: 7 }, { type: 'plant', x: 6, y: 7 },
+    // 后端团队区 (右)
+    { type: 'plant', x: 12, y: 7 }, { type: 'plant', x: 13, y: 7 },
+    // 中间留出走廊 (x=9,10 已有地毯通道)
+
     // ===== 办公区墙面装饰 (y=1) =====
     // 左上：白板 + 书架
     { type: 'whiteboard', x: 2, y: 1 }, { type: 'whiteboard', x: 3, y: 1 },
