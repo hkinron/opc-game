@@ -144,6 +144,8 @@ export class Renderer {
         else if (type === TileType.DeskCup) this.drawDeskCup(px, py, ts, time);
         else if (type === TileType.DeskPlant) this.drawDeskPlant(px, py, ts, time);
         else if (type === TileType.DeskPhoto) this.drawDeskPhoto(px, py, ts);
+        else if (type === TileType.UmbrellaStand) this.drawUmbrellaStand(px, py, ts, time);
+        else if (type === TileType.AttendanceMachine) this.drawAttendanceMachine(px, py, ts, time);
       }
     }
 
@@ -782,6 +784,110 @@ export class Renderer {
     // 相框支架
     c.fillStyle = '#5c3a1e';
     c.fillRect(x + ts / 2 - 2, y + ts * 2 / 3, 4, 2);
+  }
+
+  // ============================================
+  // ☂️ 雨伞架 — 入口必备，下雨天满满当当
+  // ============================================
+  private drawUmbrellaStand(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+    // 金属桶身
+    c.fillStyle = '#666';
+    c.fillRect(x + ts / 2 - 5, y + ts / 3, 10, ts * 2 / 3 - 4);
+    c.fillStyle = '#777';
+    c.fillRect(x + ts / 2 - 6, y + ts / 3, 12, 3);
+    // 桶内阴影
+    c.fillStyle = '#444';
+    c.fillRect(x + ts / 2 - 4, y + ts / 3 + 3, 8, 4);
+    // 雨伞 — 不同颜色，像真实办公室一样各种各样
+    const umbrellaColors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
+    const umbrellaPositions = [
+      { ox: -4, angle: -0.3 },
+      { ox: -1, angle: -0.1 },
+      { ox: 2, angle: 0.1 },
+      { ox: 5, angle: 0.3 },
+    ];
+    for (let i = 0; i < umbrellaPositions.length; i++) {
+      const pos = umbrellaPositions[i];
+      const color = umbrellaColors[(i * 3 + 1) % umbrellaColors.length];
+      const sway = Math.sin(t * 0.8 + i) * 0.5;
+      // 伞柄
+      c.fillStyle = '#555';
+      c.fillRect(x + ts / 2 + pos.ox - 0.5, y + ts / 3 - 2, 1, ts / 3 + 2);
+      // 伞把（J 形钩）
+      c.fillStyle = '#555';
+      c.fillRect(x + ts / 2 + pos.ox - 1, y + ts / 3 - 3, 3, 2);
+      // 伞面（折叠状）
+      c.fillStyle = color;
+      c.save();
+      c.translate(x + ts / 2 + pos.ox + sway, y + ts / 3 - 2);
+      c.rotate(pos.angle + sway * 0.05);
+      c.fillRect(-3, -ts / 4, 6, ts / 4);
+      // 伞面折痕
+      c.fillStyle = 'rgba(0,0,0,0.2)';
+      c.fillRect(-1, -ts / 4, 1, ts / 4);
+      c.fillRect(2, -ts / 4, 1, ts / 4);
+      c.restore();
+    }
+    // 底部水滴（偶尔出现，像刚下雨回来）
+    if (Math.sin(t * 0.3) > 0.3) {
+      c.fillStyle = 'rgba(52,152,219,0.5)';
+      c.fillRect(x + ts / 2 - 3, y + ts - 4, 2, 2);
+      c.fillRect(x + ts / 2 + 2, y + ts - 5, 1, 1);
+    }
+  }
+
+  // ============================================
+  // 📱 打卡机 — 每天最不想面对的东西
+  // ============================================
+  private drawAttendanceMachine(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+    // 机身（壁挂式）
+    c.fillStyle = '#2c3e50';
+    c.fillRect(x + ts / 2 - 7, y + 2, 14, ts - 4);
+    c.fillStyle = '#34495e';
+    c.fillRect(x + ts / 2 - 6, y + 3, 12, ts - 6);
+    // 屏幕
+    c.fillStyle = '#1a1a2e';
+    c.fillRect(x + ts / 2 - 5, y + 5, 10, 8);
+    // 屏幕内容 — 交替显示时间和状态
+    c.fillStyle = '#3498db';
+    c.font = 'bold 6px monospace';
+    c.textAlign = 'center';
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    c.fillText(timeStr, x + ts / 2, y + 11);
+    // 状态文字 — 闪烁
+    c.fillStyle = Math.sin(t * 2) > 0 ? '#2ecc71' : '#1abc9c';
+    c.font = '4px monospace';
+    c.fillText('打卡', x + ts / 2, y + 16);
+    // 刷卡区域
+    c.fillStyle = '#1a1a2e';
+    c.fillRect(x + ts / 2 - 4, y + ts / 2 + 2, 8, 5);
+    // 刷卡感应图标（WiFi 波纹）
+    c.strokeStyle = '#3498db';
+    c.lineWidth = 0.5;
+    for (let i = 0; i < 3; i++) {
+      const r = 2 + i * 2 + Math.sin(t * 3) * 1;
+      c.globalAlpha = 0.6 - i * 0.2;
+      c.beginPath();
+      c.arc(x + ts / 2, y + ts / 2 + 4, r, -Math.PI * 0.8, -Math.PI * 0.2);
+      c.stroke();
+    }
+    c.globalAlpha = 1;
+    // LED 指示灯
+    c.fillStyle = '#2ecc71';
+    c.fillRect(x + ts / 2 + 4, y + 4, 2, 2);
+    // 指纹识别区域
+    c.fillStyle = '#444';
+    c.fillRect(x + ts / 2 - 3, y + ts - 9, 6, 4);
+    c.fillStyle = '#555';
+    c.beginPath();
+    c.ellipse(x + ts / 2, y + ts - 7, 2, 1.5, 0, 0, Math.PI * 2);
+    c.fill();
+    // 顶部"考勤"标识
+    c.fillStyle = '#e94560';
+    c.fillRect(x + ts / 2 - 4, y + 1, 8, 2);
   }
 
   // ============================================

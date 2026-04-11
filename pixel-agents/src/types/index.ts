@@ -11,6 +11,9 @@ export enum TileType {
   DeskCup = 27,       // 桌面水杯
   DeskPlant = 28,     // 桌面小盆栽
   DeskPhoto = 29,     // 桌面相框
+  // 🏢 入口区
+  UmbrellaStand = 30, // 雨伞架
+  AttendanceMachine = 31, // 打卡机
 }
 
 export enum AgentState {

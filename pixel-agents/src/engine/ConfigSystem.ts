@@ -131,6 +131,10 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
     // 📦 快递柜 (入口旁)
     { type: 'packagelocker', x: 15, y: 11 },
     { type: 'packagelocker', x: 15, y: 12 },
+    // ☂️ 雨伞架 (入口左侧)
+    { type: 'umbrella', x: 7, y: 11 },
+    // 📱 打卡机 (入口右侧墙边)
+    { type: 'attendancemachine', x: 13, y: 11 },
 
     // ===== 办公区 (y=4-9, x=1-16) =====
     // 🧑‍💻 工位个人物品 — 每个工位都有自己的特色

@@ -62,7 +62,7 @@ export interface Conversation {
 // ==================== Office Object Interactions ====================
 
 export interface InteractableObject {
-  type: 'coffee' | 'couch' | 'whiteboard' | 'bookshelf' | 'printer' | 'plant' | 'desk' | 'microwave' | 'snackbar' | 'meetingtable' | 'restroom' | 'signpost' | 'packagelocker' | 'watercooler';
+  type: 'coffee' | 'couch' | 'whiteboard' | 'bookshelf' | 'printer' | 'plant' | 'desk' | 'microwave' | 'snackbar' | 'meetingtable' | 'restroom' | 'signpost' | 'packagelocker' | 'watercooler' | 'umbrella' | 'attendancemachine';
   x: number;
   y: number;
   label: string;
@@ -130,9 +130,19 @@ const OBJECT_INTERACTIONS: Record<string, InteractableObject[]> = {
     nearbyTile: { x: 10, y: 9 },
   }],
   watercooler: [{
-    type: 'watercooler', x: 9, y: 9, label: '饮水机', emoji: '💧',
+    type: 'watercooler', x: 15, y: 10, label: '饮水机', emoji: '💧',
     actionText: '接水喝...', actionDuration: 4, actionState: AgentState.Waiting,
-    nearbyTile: { x: 8, y: 9 },
+    nearbyTile: { x: 14, y: 10 },
+  }],
+  umbrella: [{
+    type: 'umbrella', x: 7, y: 11, label: '雨伞架', emoji: '☂️',
+    actionText: '放/拿雨伞...', actionDuration: 3, actionState: AgentState.Waiting,
+    nearbyTile: { x: 8, y: 11 },
+  }],
+  attendancemachine: [{
+    type: 'attendancemachine', x: 13, y: 11, label: '打卡机', emoji: '📱',
+    actionText: '滴！打卡成功！', actionDuration: 3, actionState: AgentState.Typing,
+    nearbyTile: { x: 12, y: 11 },
   }],
 };
 
