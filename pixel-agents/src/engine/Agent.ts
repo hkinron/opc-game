@@ -48,6 +48,9 @@ export class Agent {
   private typingSoundTimer: number = 0;
   private footstepSoundTimer: number = 0;
 
+  // Wander cooldown — seconds before agent considers wandering again
+  private wanderCooldown: number = 0;
+
   private static nextId = 1;
 
   constructor(config: AgentConfig, map: TileMap) {
@@ -76,7 +79,7 @@ export class Agent {
 
       case AgentState.Walking:
         this.moveTimer += dt;
-        if (this.moveTimer > 0.15) {
+        if (this.moveTimer > 0.8) {
           this.moveTimer = 0;
           this.pathIndex++;
           if (this.pathIndex < this.path.length) {

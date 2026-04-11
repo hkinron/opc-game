@@ -4,6 +4,7 @@ import { Renderer } from './Renderer';
 import { AgentWebSocket, AgentEvent } from './AgentWebSocket';
 import { KanbanBoard } from './KanbanBoard';
 import { ConfigManager } from './ConfigSystem';
+import { InteractionSystem } from './InteractionSystem';
 import { AgentConfig, AgentRole, AgentState } from '../types';
 
 const AGENT_NAMES = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve', 'Frank'];
@@ -36,6 +37,7 @@ export class Game {
   private connectionIndicator: HTMLElement | null = null;
   private kanban: KanbanBoard;
   private config: ConfigManager;
+  private interactions: InteractionSystem;
   private deskSpots: { x: number; y: number }[];
   private agentTasks: Map<string, string> = new Map();
 
@@ -47,6 +49,7 @@ export class Game {
     this.statusBar = statusBar;
     this.tooltip = tooltip;
     this.config = new ConfigManager();
+    this.interactions = new InteractionSystem();
 
     // Apply config from query params
     if (options.theme) this.config.setTheme(options.theme);
@@ -59,6 +62,7 @@ export class Game {
     this.renderer = new Renderer(canvas, this.tileMap, this.config.getTheme());
     this.kanban = new KanbanBoard();
     this.setupDefaultTasks();
+    this.renderer.setInteractions(this.interactions);
     this.setupInteraction();
 
     if (options.wsUrl) this.connectWebSocket(options.wsUrl);
@@ -168,6 +172,9 @@ export class Game {
       if (agent.shouldPlayFootstepSound()) sounds.playFootstep();
     }
 
+    // Agent proximity — check for conversations
+    this.interactions.checkAgentProximity(this.agents);
+
     // Task assignment logic (every 5 seconds in sim mode)
     if (this.useSimulation) {
       this.taskTimer += dt;
@@ -177,7 +184,7 @@ export class Game {
       }
 
       this.simTimer += dt;
-      if (this.simTimer > 2) {
+      if (this.simTimer > 12) {
         this.simTimer = 0;
         this.simulateAgentActivity();
       }
@@ -234,6 +241,7 @@ export class Game {
   private simulateAgentActivity(): void {
     if (this.agents.length === 0) return;
 
+    // Agents with tasks: work then complete
     for (const agent of this.agents) {
       if (this.agentTasks.has(agent.config.name) && agent.state === AgentState.Idle) {
         agent.setState(AgentState.Typing);
@@ -241,17 +249,55 @@ export class Game {
         if (task) agent.speechBubble = `💻 ${task.title}`;
         agent.speechTimer = 8;
       } else if (this.agentTasks.has(agent.config.name) && agent.state === AgentState.Typing) {
-        if (Math.random() < 0.15) {
-          agent.setState(AgentState.Idle);
-        }
+        if (Math.random() < 0.15) agent.setState(AgentState.Idle);
       }
     }
 
+    // Random walking behavior — agents wander around the office
     for (const agent of this.agents) {
-      if (!this.agentTasks.has(agent.config.name) && (agent.state === AgentState.Idle || agent.state === AgentState.Typing || agent.state === AgentState.Reading)) {
-        const rand = Math.random();
-        if (rand < 0.3) agent.setState(AgentState.Reading);
-        else if (rand < 0.5) agent.setState(AgentState.Waiting);
+      if (this.agentTasks.has(agent.config.name)) continue; // Busy agents don't wander
+
+      const rand = Math.random();
+      if (agent.state === AgentState.Idle && rand < 0.03) {
+        // 5% chance every 6s: get up and wander (avg ~120s per agent)
+        const spots = [
+          // Coffee machine area
+          { x: 7, y: 4, msg: '☕ Getting coffee...' },
+          // Couch area
+          { x: 1, y: 6, msg: '🛋️ Taking a break...' },
+          // Whiteboard
+          { x: 2, y: 3, msg: '📝 Checking the board...' },
+          // Bookshelf
+          { x: 10, y: 3, msg: '📚 Browsing docs...' },
+          // Another agent's desk
+          { x: 6, y: 8, msg: '💬 Chatting...' },
+        ];
+        const spot = spots[Math.floor(Math.random() * spots.length)];
+        if (this.tileMap.isWalkable(spot.x, spot.y)) {
+          agent.walkTo(spot.x, spot.y, this.tileMap);
+          agent.speechBubble = spot.msg;
+          agent.speechTimer = 5;
+
+          // After arriving, stay there a while before going back
+          setTimeout(() => {
+            if (agent.state === AgentState.Idle || agent.state === AgentState.Typing || agent.state === AgentState.Reading) {
+              agent.walkTo(agent.config.deskX, agent.config.deskY + 1, this.tileMap);
+              setTimeout(() => {
+                if (agent.state !== AgentState.Walking) {
+                  agent.setState(AgentState.Idle);
+                }
+              }, 3000);
+            }
+          }, 8000);
+        }
+      } else if (agent.state === AgentState.Idle && rand < 0.45) {
+        agent.setState(AgentState.Reading);
+        agent.speechBubble = '📖 Reading docs...';
+        agent.speechTimer = 6;
+      } else if (agent.state === AgentState.Idle && rand < 0.55) {
+        agent.setState(AgentState.Waiting);
+        agent.speechBubble = '🤔 Thinking...';
+        agent.speechTimer = 5;
       }
     }
   }
@@ -315,6 +361,10 @@ export class Game {
       const tx = Math.floor((e.clientX - rect.left) / this.renderer.tileSize);
       const ty = Math.floor((e.clientY - rect.top) / this.renderer.tileSize);
 
+      // Check for office object interaction first
+      if (this.interactions.handleObjectClick(tx, ty, this.agents, this.tileMap)) return;
+
+      // Check for agent click
       for (const a of this.agents) {
         if (Math.round(a.x) === tx && Math.round(a.y) === ty) {
           const states = [AgentState.Typing, AgentState.Reading, AgentState.Waiting, AgentState.Idle];
@@ -325,10 +375,13 @@ export class Game {
     });
 
     this.canvas.addEventListener('mousemove', e => {
+      this.renderer.setHoverTile(tx, ty);
       const rect = this.canvas.getBoundingClientRect();
       const tx = Math.floor((e.clientX - rect.left) / this.renderer.tileSize);
       const ty = Math.floor((e.clientY - rect.top) / this.renderer.tileSize);
       let found = false;
+
+      // Check for agent hover
       for (const a of this.agents) {
         if (Math.round(a.x) === tx && Math.round(a.y) === ty) {
           this.tooltip.style.display = 'block';
@@ -347,7 +400,28 @@ export class Game {
           found = true; break;
         }
       }
+
+      // Check for object hover
+      if (!found) {
+        const obj = this.interactions.getInteractableAt(tx, ty);
+        if (obj) {
+          this.tooltip.style.display = 'block';
+          this.tooltip.style.left = (e.clientX + 12) + 'px';
+          this.tooltip.style.top = (e.clientY + 12) + 'px';
+          this.tooltip.innerHTML = `
+            <strong>${obj.emoji} ${obj.label}</strong><br>
+            Click to send an agent to interact<br>
+            <span style="color:#64748b">Action: ${obj.actionText}</span>
+          `;
+          found = true;
+        }
+      }
+
       if (!found) this.tooltip.style.display = 'none';
+    });
+
+    this.canvas.addEventListener("mouseleave", () => {
+      this.renderer.setHoverTile(-1, -1);
     });
 
     document.getElementById('btn-add')?.addEventListener('click', () => this.addAgent());

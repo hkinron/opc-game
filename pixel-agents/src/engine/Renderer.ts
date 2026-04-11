@@ -6,6 +6,7 @@ import { SoundSystem } from './SoundSystem';
 import { ThemeColors } from './ConfigSystem';
 import { TileType, AgentState } from '../types';
 import { KanbanBoard, TASK_COLORS, PRIORITY_COLORS } from './KanbanBoard';
+import { InteractionSystem } from './InteractionSystem';
 
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
@@ -13,6 +14,8 @@ export class Renderer {
   private kanbanBoard: KanbanBoard | null = null;
   private particles: ParticleSystem;
   private sounds: SoundSystem;
+  private interactions: InteractionSystem | null = null;
+  private hoverTile: { x: number; y: number } | null = null;
   private theme: ThemeColors;
   tileSize: number = 32;
 
@@ -34,6 +37,14 @@ export class Renderer {
 
   setKanbanBoard(board: KanbanBoard): void {
     this.kanbanBoard = board;
+  }
+
+  setInteractions(system: InteractionSystem): void {
+    this.interactions = system;
+  }
+
+  setHoverTile(x: number, y: number): void {
+    this.hoverTile = { x, y };
   }
 
   getSoundSystem(): SoundSystem {
@@ -79,6 +90,22 @@ export class Renderer {
         if (type === TileType.Printer) this.drawPrinter(px, py, ts, time);
         if (type === TileType.Coffee) this.drawCoffee(px, py, ts, time);
         if (type === TileType.Kanban) this.drawKanbanTile(px, py, ts, time);
+      }
+    }
+
+    // Highlight interactable objects on hover
+    if (this.hoverTile && this.interactions) {
+      const obj = this.interactions.getInteractableAt(this.hoverTile.x, this.hoverTile.y);
+      if (obj) {
+        const px = obj.nearbyTile.x * ts;
+        const py = obj.nearbyTile.y * ts;
+        ctx.strokeStyle = 'rgba(250,204,21,0.8)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(px - 2, py - 2, ts + 4, ts + 4);
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(250,204,21,0.15)';
+        ctx.fillRect(px - 2, py - 2, ts + 4, ts + 4);
       }
     }
 
