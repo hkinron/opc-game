@@ -1,8 +1,9 @@
 // ============================================
 // Pixel Agents - Configuration System
 // ============================================
-// 参考: pablodelucca/pixel-agents — 两房间办公室布局
-// 布局: 20×11 双房间 + 中间隔墙 + 门洞
+// 办公室布局设计 (参考 pablodelucca/pixel-agents + 设计原则)
+// 设计原则: 空间层次 / 呼吸感 / 动线清晰 / 色彩统一
+// 尺寸: 20×11 — 参考项目默认尺寸
 
 export interface ThemeColors {
   background: string;
@@ -26,12 +27,12 @@ export interface ThemeColors {
   statusbarBorder: string;
 }
 
+// 暖色调地板 (参考项目配色: 左房米色 #c4a882, 右房棕色 #8a7058)
 export const DEFAULT_THEME: ThemeColors = {
   background: '#2c2016',
   wall: '#3a3a52',
   wallHighlight: 'rgba(255,255,255,0.08)',
   wallShadow: 'rgba(0,0,0,0.25)',
-  // 暖色地板 (参考项目: 米色 #c4a882 / 棕色 #8a7058)
   floor: '#b8a088',
   floorPattern: 'rgba(180,150,110,0.4)',
   floorGrid: 'rgba(0,0,0,0.06)',
@@ -81,27 +82,28 @@ export const THEMES: Record<string, ThemeColors> = {
 // Layout Configurations
 // ============================================
 //
-// 20×11 双房间办公室 (参考 pablodelucca/pixel-agents)
+// 📐 20×11 专业办公室 — 两房间 + 中央走廊
 //
-// ┌─────────────────────────────────────────────┐
-// │ 🪴   办公区 A         │  办公区 B    📦   │
-// │      4 工位   🖥️     │   4 工位           │
-// │  ┌──┐ ┌──┐           │           ┌──┐┌──┐  │
-// │  │💻│ │💻│           │           │💻││💻│  │
-// │  └──┘ └──┘           │           └──┘└──┘  │
-// │                       │  ┌──┐ ┌──┐          │
-// │  ┌──┐ ┌──┐           │  │💻│ │💻│          │
-// │  │💻│ │💻│           │  └──┘ └──┘          │
-// │  └──┘ └──┘           │                     │
-// │                       │  ☕ 🛋️              │
-// ├───────  隔墙 ─🚪──────┼─────────────────────┤
-// │ 🛋️ 休息区   │  走廊   │  茶水间    │ 🚻    │
-// │  沙发      │         │ 咖啡/冰箱  │ 卫生间 │
-// └────────────┴─────────┴────────────┴────────┘
+// 设计思路 (参考 pablodelucca/pixel-agents):
+// 1. 两房间分隔 — 中间隔墙 + 门洞，真实感
+// 2. 暖色地板 — 左房米色(#c4a882) 右房棕色(#8a7058)
+// 3. 工位对称 — 每间4工位，间距均匀
+// 4. 底部功能区 — 休息区 / 茶水间 / 卫生间
+// 5. 入口区域 — 电梯 + 前台
 //
-// 左房间: x=1-9 (暖色地板)
-// 右房间: x=11-18 (深色地板)
-// 隔墙: x=10 (带门洞 y=5-6)
+// 布局平面图:
+// ┌──────────────────────────────────────────┐
+// │ 白板 白板 │ 窗  │ 窗 │ 书架 书架 │      │ y=1
+// │          │     │    │          │       │
+// │ 💻  💻   │ 🪴  │ 🪴 │  💻  💻  │ 时钟  │ y=3 工位上排
+// │          │     │    │          │       │
+// │ 💻  💻   │     │    │  💻  💻  │       │ y=5 工位下排
+// │          │     │    │          │       │
+// ├── 隔墙 ──┼──🚪─┼────┼─── 隔墙 ─┤       │ y=7 隔墙(带门)
+// │          │     │    │          │       │
+// │ 🛋️🛋️🛋️  │走廊 │    │ ☕🧊📦   │       │ y=9 休息区+茶水间
+// │ 前台    │电梯 │    │ 快递柜   │ 🚻    │ y=10 入口区
+// └─────────┴─────┴────┴──────────┴───────┘
 
 export interface OfficeLayout {
   name: string;
@@ -116,103 +118,98 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
   width: 20, height: 11,
   desks: [
     // ===== 办公区 A (左房间) =====
-    // 上排 (面朝上)
-    { x: 3, y: 2 }, { x: 6, y: 2 },
-    // 下排 (面朝下)
-    { x: 3, y: 5 }, { x: 6, y: 5 },
+    { x: 2, y: 3 }, { x: 5, y: 3 },   // 上排
+    { x: 2, y: 5 }, { x: 5, y: 5 },   // 下排
     // ===== 办公区 B (右房间) =====
-    // 上排 (面朝上)
-    { x: 13, y: 2 }, { x: 16, y: 2 },
-    // 下排 (面朝下)
-    { x: 13, y: 5 }, { x: 16, y: 5 },
+    { x: 13, y: 3 }, { x: 16, y: 3 }, // 上排
+    { x: 13, y: 5 }, { x: 16, y: 5 }, // 下排
   ],
   furniture: [
     // ========================================
-    // 隔墙 (x=10) — 分隔两个房间，留门洞
-    // 上段墙 (y=1-4)
-    { type: 'poster', x: 10, y: 1 },
-    { type: 'poster', x: 10, y: 2 },
-    { type: 'poster', x: 10, y: 3 },
-    { type: 'poster', x: 10, y: 4 },
-    // 门洞 (y=5-6)
-    { type: 'door', x: 10, y: 5 },
-    { type: 'door', x: 10, y: 6 },
-    // 下段墙 (y=7-9)
-    { type: 'poster', x: 10, y: 7 },
-    { type: 'poster', x: 10, y: 8 },
-    { type: 'poster', x: 10, y: 9 },
+    // 隔墙 (x=9) — 分隔两个房间
+    // 上段 (y=1-6)
+    { type: 'poster', x: 9, y: 1 },
+    { type: 'poster', x: 9, y: 2 },
+    { type: 'poster', x: 9, y: 3 },
+    { type: 'poster', x: 9, y: 4 },
+    { type: 'poster', x: 9, y: 5 },
+    { type: 'poster', x: 9, y: 6 },
+    // 门洞 (y=7-8)
+    { type: 'door', x: 9, y: 7 },
+    { type: 'door', x: 9, y: 8 },
+    // 下段 (y=9-10)
+    { type: 'poster', x: 9, y: 9 },
 
     // ========================================
-    // 办公区 A (左房间) — 桌面物品
-    { type: 'deskcup', x: 4, y: 2 },   // 工位(3,2)
-    { type: 'deskplant', x: 3, y: 1 },
-    { type: 'deskphoto', x: 7, y: 2 }, // 工位(6,2)
-    { type: 'deskplant', x: 6, y: 1 },
-    { type: 'deskcup', x: 4, y: 5 },   // 工位(3,5)
-    { type: 'deskphoto', x: 7, y: 5 }, // 工位(6,5)
-
-    // 办公区 A — 装饰
+    // 办公区 A (左房间) — 装饰
     { type: 'whiteboard', x: 1, y: 1 }, { type: 'whiteboard', x: 2, y: 1 },
-    { type: 'bookshelf', x: 8, y: 1 }, { type: 'bookshelf', x: 9, y: 1 },
-    { type: 'kanban', x: 4, y: 1 }, { type: 'kanban', x: 5, y: 1 },
-    { type: 'window', x: 1, y: 4 }, { type: 'window', x: 2, y: 4 },
-    { type: 'plant', x: 9, y: 4 },
-    { type: 'lamp', x: 4, y: 1 },
-    { type: 'lamp', x: 4, y: 4 },
-    // 打印机
-    { type: 'printer', x: 9, y: 2 }, { type: 'printer', x: 9, y: 3 },
+    { type: 'window', x: 7, y: 1 },
+    { type: 'plant', x: 7, y: 4 },
+    { type: 'lamp', x: 3, y: 1 },
+    { type: 'lamp', x: 3, y: 4 },
+    // 打印机 (靠墙)
+    { type: 'printer', x: 7, y: 5 },
+
+    // 办公区 A — 桌面物品 (每个工位个性化)
+    { type: 'deskcup', x: 3, y: 3 },     // 工位(2,3) 水杯
+    { type: 'deskplant', x: 2, y: 2 },   // 工位(2,3) 盆栽
+    { type: 'deskphoto', x: 6, y: 3 },   // 工位(5,3) 相框
+    { type: 'deskplant', x: 5, y: 2 },   // 工位(5,3) 盆栽
+    { type: 'deskcup', x: 3, y: 5 },     // 工位(2,5) 水杯
+    { type: 'deskphoto', x: 6, y: 5 },   // 工位(5,5) 相框
 
     // ========================================
-    // 办公区 B (右房间) — 桌面物品
-    { type: 'deskphoto', x: 14, y: 2 },// 工位(13,2)
-    { type: 'deskplant', x: 13, y: 1 },
-    { type: 'deskcup', x: 17, y: 2 },  // 工位(16,2)
-    { type: 'deskplant', x: 16, y: 1 },
-    { type: 'deskcup', x: 14, y: 5 },  // 工位(13,5)
-    { type: 'deskphoto', x: 17, y: 5 },// 工位(16,5)
-
-    // 办公区 B — 装饰
-    { type: 'window', x: 18, y: 1 }, { type: 'window', x: 18, y: 2 },
-    { type: 'bookshelf', x: 11, y: 1 }, { type: 'bookshelf', x: 12, y: 1 },
-    { type: 'plant', x: 11, y: 4 },
+    // 办公区 B (右房间) — 装饰
+    { type: 'window', x: 12, y: 1 },
+    { type: 'bookshelf', x: 16, y: 1 }, { type: 'bookshelf', x: 17, y: 1 },
+    { type: 'plant', x: 12, y: 4 },
     { type: 'lamp', x: 14, y: 1 },
     { type: 'lamp', x: 14, y: 4 },
-    // 时钟
-    { type: 'clock', x: 15, y: 1 },
-    // 装饰画
-    { type: 'poster', x: 17, y: 1 },
+    { type: 'clock', x: 18, y: 1 },
+
+    // 办公区 B — 桌面物品
+    { type: 'deskphoto', x: 14, y: 3 },  // 工位(13,3) 相框
+    { type: 'deskplant', x: 13, y: 2 },  // 工位(13,3) 盆栽
+    { type: 'deskcup', x: 17, y: 3 },    // 工位(16,3) 水杯
+    { type: 'deskplant', x: 16, y: 2 },  // 工位(16,3) 盆栽
+    { type: 'deskcup', x: 14, y: 5 },    // 工位(13,5) 水杯
+    { type: 'deskphoto', x: 17, y: 5 },  // 工位(16,5) 相框
 
     // ========================================
-    // 底部区域 (y=7-9)
+    // 底部功能区 (y=9-10)
     // 🛋️ 休息区 (左下)
-    { type: 'couch', x: 2, y: 8 }, { type: 'couch', x: 3, y: 8 }, { type: 'couch', x: 4, y: 8 },
-    { type: 'couch', x: 2, y: 9 }, { type: 'couch', x: 3, y: 9 },
-    { type: 'plant', x: 1, y: 8 }, { type: 'plant', x: 5, y: 8 },
-    { type: 'bookshelf', x: 6, y: 8 }, { type: 'bookshelf', x: 7, y: 8 },
-    // 地毯区域 (走廊)
-    { type: 'carpet', x: 8, y: 7 }, { type: 'carpet', x: 9, y: 7 },
-    { type: 'carpet', x: 8, y: 8 }, { type: 'carpet', x: 9, y: 8 },
-    { type: 'carpet', x: 8, y: 9 }, { type: 'carpet', x: 9, y: 9 },
+    { type: 'couch', x: 2, y: 9 }, { type: 'couch', x: 3, y: 9 }, { type: 'couch', x: 4, y: 9 },
+    { type: 'couch', x: 2, y: 10 }, { type: 'couch', x: 3, y: 10 },
+    { type: 'plant', x: 1, y: 9 }, { type: 'plant', x: 5, y: 9 },
 
-    // ☕ 茶水间 (右下)
-    { type: 'coffee', x: 13, y: 8 },
-    { type: 'fridge', x: 13, y: 9 },
-    { type: 'microwave', x: 14, y: 8 },
-    { type: 'snackbar', x: 15, y: 8 },
-    { type: 'watercooler', x: 12, y: 8 },
-    { type: 'trash', x: 15, y: 9 },
-    { type: 'plant', x: 11, y: 8 },
+    // 走廊地毯
+    { type: 'carpet', x: 7, y: 9 }, { type: 'carpet', x: 8, y: 9 },
+    { type: 'carpet', x: 7, y: 10 }, { type: 'carpet', x: 8, y: 10 },
+    // 书架 (走廊旁)
+    { type: 'bookshelf', x: 6, y: 9 },
+
+    // ☕ 茶水间 (右中)
+    { type: 'coffee', x: 13, y: 9 },
+    { type: 'fridge', x: 14, y: 9 },
+    { type: 'microwave', x: 15, y: 9 },
+    { type: 'snackbar', x: 16, y: 9 },
+    { type: 'watercooler', x: 12, y: 9 },
+    { type: 'trash', x: 17, y: 9 },
+    { type: 'plant', x: 11, y: 9 },
+
+    // 📦 快递柜 (右下)
+    { type: 'packagelocker', x: 13, y: 10 }, { type: 'packagelocker', x: 14, y: 10 },
 
     // 🚻 卫生间 (最右)
-    { type: 'restroom', x: 17, y: 8 }, { type: 'restroom', x: 18, y: 8 },
+    { type: 'restroom', x: 17, y: 10 }, { type: 'restroom', x: 18, y: 10 },
 
     // ========================================
-    // 入口区域 (y=10 — 最底部)
-    { type: 'elevator', x: 8, y: 10 }, { type: 'elevator', x: 9, y: 10 },
-    { type: 'receptiondesk', x: 5, y: 10 }, { type: 'receptiondesk', x: 6, y: 10 },
-    { type: 'packagelocker', x: 13, y: 10 }, { type: 'packagelocker', x: 14, y: 10 },
-    { type: 'plant', x: 3, y: 10 }, { type: 'plant', x: 16, y: 10 },
-    // 导向标识
+    // 入口区域 (y=10 底部)
+    // 🏢 前台 (左侧)
+    { type: 'receptiondesk', x: 1, y: 10 },
+    // 🛗 电梯 (中央偏左)
+    { type: 'elevator', x: 7, y: 10 }, { type: 'elevator', x: 8, y: 10 },
+    // 🪧 导向标识 (电梯旁)
     { type: 'signpost', x: 10, y: 10 },
   ],
 };

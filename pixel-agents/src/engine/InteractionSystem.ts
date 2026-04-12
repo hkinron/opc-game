@@ -62,7 +62,7 @@ export interface Conversation {
 // ==================== Office Object Interactions ====================
 
 export interface InteractableObject {
-  type: 'coffee' | 'couch' | 'whiteboard' | 'bookshelf' | 'printer' | 'plant' | 'desk' | 'microwave' | 'snackbar' | 'meetingtable' | 'restroom' | 'signpost' | 'packagelocker' | 'watercooler' | 'umbrella' | 'attendancemachine' | 'bulletinboard' | 'vendingmachine' | 'phonebooth' | 'serverrack';
+  type: 'coffee' | 'couch' | 'whiteboard' | 'bookshelf' | 'printer' | 'plant' | 'desk' | 'microwave' | 'snackbar' | 'meetingtable' | 'restroom' | 'signpost' | 'packagelocker' | 'watercooler' | 'umbrella' | 'attendancemachine' | 'bulletinboard' | 'vendingmachine' | 'phonebooth' | 'serverrack' | 'airconditioner' | 'fireextinguisher' | 'floorarrow' | 'walltv' | 'kpiboard';
   x: number;
   y: number;
   label: string;
@@ -120,53 +120,73 @@ const OBJECT_INTERACTIONS: Record<string, InteractableObject[]> = {
     nearbyTile: { x: 2, y: 8 },
   }],
   signpost: [{
-    type: 'signpost', x: 6, y: 5, label: '导向标识', emoji: '🪧',
+    type: 'signpost', x: 10, y: 10, label: '导向标识', emoji: '🪧',
     actionText: '看路牌中...', actionDuration: 3, actionState: AgentState.Reading,
-    nearbyTile: { x: 6, y: 6 },
+    nearbyTile: { x: 9, y: 10 },
   }],
   packagelocker: [{
-    type: 'packagelocker', x: 11, y: 9, label: '快递柜', emoji: '📦',
+    type: 'packagelocker', x: 13, y: 10, label: '快递柜', emoji: '📦',
     actionText: '取快递中...', actionDuration: 5, actionState: AgentState.Waiting,
-    nearbyTile: { x: 10, y: 9 },
+    nearbyTile: { x: 12, y: 10 },
   }],
   watercooler: [{
-    type: 'watercooler', x: 15, y: 10, label: '饮水机', emoji: '💧',
+    type: 'watercooler', x: 12, y: 8, label: '饮水机', emoji: '💧',
     actionText: '接水喝...', actionDuration: 4, actionState: AgentState.Waiting,
-    nearbyTile: { x: 14, y: 10 },
+    nearbyTile: { x: 11, y: 8 },
   }],
   umbrella: [{
-    type: 'umbrella', x: 4, y: 11, label: '雨伞架', emoji: '☂️',
+    type: 'umbrella', x: 4, y: 10, label: '雨伞架', emoji: '☂️',
     actionText: '放/拿雨伞...', actionDuration: 3, actionState: AgentState.Waiting,
-    nearbyTile: { x: 5, y: 11 },
+    nearbyTile: { x: 4, y: 9 },
   }],
   attendancemachine: [{
-    type: 'attendancemachine', x: 13, y: 11, label: '打卡机', emoji: '📱',
+    type: 'attendancemachine', x: 12, y: 10, label: '打卡机', emoji: '📱',
     actionText: '滴！打卡成功！', actionDuration: 3, actionState: AgentState.Typing,
-    nearbyTile: { x: 12, y: 11 },
+    nearbyTile: { x: 11, y: 10 },
   }],
   bulletinboard: [{
-    type: 'bulletinboard', x: 5, y: 1, label: '公告栏', emoji: '📌',
+    type: 'bulletinboard', x: 3, y: 4, label: '公告栏', emoji: '📌',
     actionText: '看看有什么通知...', actionDuration: 5, actionState: AgentState.Reading,
-    nearbyTile: { x: 5, y: 2 },
+    nearbyTile: { x: 3, y: 5 },
   }],
   vendingmachine: [{
-    type: 'vendingmachine', x: 13, y: 8, label: '自动售货机', emoji: '🥤',
+    type: 'vendingmachine', x: 11, y: 9, label: '自动售货机', emoji: '🥤',
     actionText: '选个饮料...', actionDuration: 5, actionState: AgentState.Waiting,
-    nearbyTile: { x: 12, y: 8 },
+    nearbyTile: { x: 10, y: 9 },
   }],
   phonebooth: [{
-    type: 'phonebooth', x: 6, y: 11, label: '电话亭', emoji: '📞',
+    type: 'phonebooth', x: 5, y: 10, label: '电话亭', emoji: '📞',
     actionText: '接电话中...', actionDuration: 8, actionState: AgentState.Waiting,
-    nearbyTile: { x: 5, y: 11 },
+    nearbyTile: { x: 5, y: 9 },
   }],
   serverrack: [{
     type: 'serverrack', x: 1, y: 3, label: '服务器机房', emoji: '🖥️',
     actionText: '紧急修复服务器...', actionDuration: 8, actionState: AgentState.Typing,
     nearbyTile: { x: 3, y: 3 },
   }],
-  bulletinboard: [{
-    type: 'bulletinboard', x: 9, y: 7, label: '公告栏', emoji: '📌',
-    actionText: '看看有什么通知...', actionDuration: 5, actionState: AgentState.Reading,
+  airconditioner: [{
+    type: 'airconditioner', x: 3, y: 1, label: '中央空调', emoji: '🌀',
+    actionText: '好冷/好热...', actionDuration: 3, actionState: AgentState.Waiting,
+    nearbyTile: { x: 3, y: 2 },
+  }],
+  fireextinguisher: [{
+    type: 'fireextinguisher', x: 10, y: 6, label: '灭火器', emoji: '🧯',
+    actionText: '安全检查中...', actionDuration: 3, actionState: AgentState.Reading,
+    nearbyTile: { x: 9, y: 6 },
+  }],
+  floorarrow: [{
+    type: 'floorarrow', x: 8, y: 7, label: '导向箭头', emoji: '➡️',
+    actionText: '看路标中...', actionDuration: 2, actionState: AgentState.Idle,
+    nearbyTile: { x: 8, y: 7 },
+  }],
+  walltv: [{
+    type: 'walltv', x: 3, y: 7, label: '壁挂电视', emoji: '📺',
+    actionText: '摸鱼看电视...', actionDuration: 8, actionState: AgentState.Idle,
+    nearbyTile: { x: 3, y: 8 },
+  }],
+  kpiboard: [{
+    type: 'kpiboard', x: 10, y: 8, label: 'KPI看板', emoji: '📊',
+    actionText: '看看这个月KPI达标没...', actionDuration: 5, actionState: AgentState.Waiting,
     nearbyTile: { x: 9, y: 8 },
   }],
 };

@@ -40,6 +40,34 @@ export const TILE_CONFIG: Record<TileType, TileConfig> = {
   [TileType.ServerRack]:    { name: 'ServerRack',    color: '#1a1a2e', borderColor: '#00ff88', walkable: false },
   [TileType.ServerRoomGlass]: { name: 'ServerRoomGlass', color: '#1a2a3a', borderColor: '#3a7a9a', walkable: false },
   [TileType.ZoneLabel]:     { name: 'ZoneLabel',     color: '#3a3a5a', walkable: true },
+  [TileType.AbsentSign]:    { name: 'AbsentSign',    color: '#94a3b8', borderColor: '#fbbf24', walkable: true },
+  [TileType.LunchTable]:    { name: 'LunchTable',    color: '#8b6914', borderColor: '#a07820', walkable: false },
+  [TileType.KPIBoard]:      { name: 'KPIBoard',      color: '#2a2a4e', borderColor: '#fbbf24', walkable: false },
+  [TileType.WindowPlant]:   { name: 'WindowPlant',   color: '#3a7a2a', borderColor: '#8b6914', walkable: false },
+  [TileType.PingPong]:      { name: 'PingPong',      color: '#1a6b3a', borderColor: '#2a9a5a', walkable: false },
+  [TileType.BirthdayCake]:  { name: 'BirthdayCake',  color: '#ff69b4', borderColor: '#ffd700', walkable: false },
+  [TileType.WelcomeMat]:    { name: 'WelcomeMat',    color: '#3a3a5a', borderColor: '#e94560', walkable: true },
+  // 🏢 会议室玻璃隔断 — 半透明，能看到里面开会
+  [TileType.MeetingGlass]:  { name: 'MeetingGlass',  color: '#2a4a6a', borderColor: '#5ab8e8', walkable: true },
+  [TileType.MeetingWhiteboard]: { name: 'MeetingWhiteboard', color: '#e8e8f0', borderColor: '#333', walkable: false },
+  // 🪑 茶水间吧台椅 — 高脚凳
+  [TileType.BarStool]: { name: 'BarStool', color: '#6b4423', borderColor: '#8b6914', walkable: false },
+  // 🛋️ 访客等候区
+  [TileType.VisitorSofa]: { name: 'VisitorSofa', color: '#4a6a8a', borderColor: '#6a9abf', walkable: false },
+  [TileType.CompanyLogo]: { name: 'CompanyLogo', color: '#1a1a2e', borderColor: '#00ff88', walkable: false },
+  [TileType.MagazineRack]: { name: 'MagazineRack', color: '#8b6914', borderColor: '#c0942a', walkable: false },
+  // 🌀 天花板空调出风口
+  [TileType.AirConditioner]: { name: 'AirConditioner', color: '#d8d8e8', borderColor: '#b0b0c0', walkable: false },
+  // 🧯 灭火器
+  [TileType.FireExtinguisher]: { name: 'FireExtinguisher', color: '#c0392b', borderColor: '#e74c3c', walkable: false },
+  // ➡️ 地面导向箭头 — 画在地毯上，指向不同区域
+  [TileType.FloorArrow]: { name: 'FloorArrow', color: '#2e2e4e', borderColor: '#fbbf24', walkable: true },
+  // 📺 休息区壁挂电视 — 挂在墙上的大屏幕
+  [TileType.WallTV]: { name: 'WallTV', color: '#1a1a2e', borderColor: '#3a7a9a', walkable: false },
+  // 💡 天花板 LED 灯盘 — 嵌入式办公室照明
+  [TileType.CeilingLight]: { name: 'CeilingLight', color: '#d8d8e8', borderColor: '#fbbf24', walkable: false },
+  // 🖨️ 打印机卡纸 — 打印机故障状态，亮红灯、吐纸
+  [TileType.PrinterJam]: { name: 'PrinterJam', color: '#8b3a3a', borderColor: '#ff4444', walkable: false },
 };
 
 export const KANBAN_BOARD = { x: 4, y: 1, width: 4 };
@@ -59,6 +87,20 @@ const FURNITURE_MAP: Record<string, TileType> = {
   bulletinboard: TileType.BulletinBoard, vendingmachine: TileType.VendingMachine,
   phonebooth: TileType.PhoneBooth, serverrack: TileType.ServerRack,
   serverroomglass: TileType.ServerRoomGlass, zonelabel: TileType.ZoneLabel,
+  absentsign: TileType.AbsentSign, lunchtable: TileType.LunchTable,
+  windowplant: TileType.WindowPlant, pingpong: TileType.PingPong,
+  birthdaycake: TileType.BirthdayCake, welcomemat: TileType.WelcomeMat,
+  meetingglass: TileType.MeetingGlass, meetingwhiteboard: TileType.MeetingWhiteboard,
+  barstool: TileType.BarStool,
+  visitorsofa: TileType.VisitorSofa, companylogo: TileType.CompanyLogo,
+  magazinerack: TileType.MagazineRack,
+  airconditioner: TileType.AirConditioner,
+  fireextinguisher: TileType.FireExtinguisher,
+  floorarrow: TileType.FloorArrow,
+  walltv: TileType.WallTV,
+  kpiboard: TileType.KPIBoard,
+  ceilinglight: TileType.CeilingLight,
+  printerjam: TileType.PrinterJam,
 };
 
 export class TileMap {

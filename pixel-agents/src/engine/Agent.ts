@@ -51,9 +51,23 @@ export class Agent {
   // Wander cooldown — seconds before agent considers wandering again
   private wanderCooldown: number = 0;
 
-  // 🏃 迟到 / 🌆 下班离开
+  // 🏃 迟到 / 🌆 下班离开 / 🏠 请假 / 🌙 周末加班
   hasArrivedToday = false; // 今天是否已经到达工位
   hasLeftOffice = false;   // 今天是否已下班离开
+  isAbsent = false;         // 今天是否请假/居家办公（不出现）
+  absenceReason = '';       // 请假原因
+  isWeekendOvertime = false; // 今天是否周末加班（周末专属）
+
+  // 🥱 打哈欠传染冷却
+  lastYawnTime = 0; // 上次打哈欠的时间（秒），用于防止传染连锁反应
+
+  // 🧋 桌上的奶茶杯（喝完后的残留）
+  drinkOnDesk: string | null = null; // 桌上饮品名称
+  drinkOnDeskTimer: number = 0;       // 饮品在桌上持续的时间（秒）
+
+  // ☂️ 雨天打伞 — 下雨时从雨伞架拿伞
+  hasUmbrella = false; // 是否拿着伞
+  umbrellaGrabbedToday = false; // 今天是否已经拿过伞（避免重复拿）
 
   private static nextId = 1;
 
@@ -75,6 +89,14 @@ export class Agent {
     this.typingSoundTimer -= dt;
     this.footstepSoundTimer -= dt;
     if (this.speechTimer <= 0) this.speechBubble = null;
+    // 🧋 桌上奶茶杯倒计时
+    if (this.drinkOnDeskTimer > 0) {
+      this.drinkOnDeskTimer -= dt;
+      if (this.drinkOnDeskTimer <= 0) {
+        this.drinkOnDesk = null;
+        this.drinkOnDeskTimer = 0;
+      }
+    }
 
     switch (this.state) {
       case AgentState.Idle:
@@ -158,6 +180,26 @@ export class Agent {
           this.stateTimer = 0;
           this.speechBubble = '😪 睡醒了...下午继续搬砖';
           this.speechTimer = 4;
+        }
+        break;
+
+      case AgentState.伸懒腰:
+        this.animFrame = 0;
+        // 伸懒腰动画持续几秒，然后自动恢复
+        if (this.stateTimer > 4 + Math.random() * 3) {
+          this.state = AgentState.Typing;
+          this.stateTimer = 0;
+        }
+        break;
+
+      case AgentState.打哈欠:
+        this.animFrame = 0;
+        // 打哈欠 2-4 秒，然后恢复
+        if (this.stateTimer > 2 + Math.random() * 2) {
+          this.state = AgentState.Idle;
+          this.stateTimer = 0;
+          this.speechBubble = '😪 哈欠连天...';
+          this.speechTimer = 3;
         }
         break;
     }

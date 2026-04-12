@@ -28,6 +28,8 @@ export class Renderer {
   private theme: ThemeColors;
   private officeCat: OfficeCat | null = null;
   private boss: Boss | null = null;
+  private deliveryPerson: { x: number; y: number; timer: number; bags: number } | null = null;
+  private umbrellasRemaining: number = 6; // ☂️ 雨伞架剩余伞数
   private dayNight: DayNightCycle;
   tileSize: number = 32;
   private activeEvents: OfficeEvent[] = [];
@@ -37,6 +39,11 @@ export class Renderer {
   private snowFlakes: SnowFlake[] = [];
   private meetingRoomActive: boolean = false;
   private meetingAgentCount: number = 0;
+  private activityLevel: number = 0.5; // 📊 办公室活跃度 0-1
+  private activeAgentCount: number = 0;
+  private typingDesks: Set<string> = new Set(); // 💻 正在打字的工位 "x,y"
+  private idleDesks: Set<string> = new Set(); // 🖥️ 无人使用的工位 — 显示器关闭/待机状态
+  private weekendOvertimeDesks: Set<string> = new Set(); // 🌙 周末加班工位 — 非加班工位显示器关闭，办公室灯光调暗
 
   constructor(canvas: HTMLCanvasElement, tileMap: TileMap, theme?: ThemeColors) {
     this.ctx = canvas.getContext('2d')!;
@@ -63,10 +70,16 @@ export class Renderer {
   setInteractions(system: InteractionSystem): void { this.interactions = system; }
   setOfficeCat(cat: OfficeCat): void { this.officeCat = cat; }
   setBoss(b: Boss): void { this.boss = b; }
+  setDeliveryPerson(dp: { x: number; y: number; timer: number; bags: number } | null): void { this.deliveryPerson = dp; }
+  setUmbrellasRemaining(n: number): void { this.umbrellasRemaining = Math.max(0, n); }
   setHoverTile(x: number, y: number): void { this.hoverTile = { x, y }; }
   getSoundSystem(): SoundSystem { return this.sounds; }
   getDayNight(): DayNightCycle { return this.dayNight; }
   setMeetingRoomActive(active: boolean, agentCount: number): void { this.meetingRoomActive = active; this.meetingAgentCount = agentCount; }
+  setActivityLevel(level: number, count: number): void { this.activityLevel = Math.max(0, Math.min(1, level)); this.activeAgentCount = count; }
+  setTypingDesks(desks: Set<string>): void { this.typingDesks = desks; }
+  setIdleDesks(desks: Set<string>): void { this.idleDesks = desks; }
+  setWeekendOvertimeDesks(desks: Set<string>): void { this.weekendOvertimeDesks = desks; }
 
   triggerEvent(msg: string, duration: number = 15): void {
     const colors = ['#e74c3c', '#f39c12', '#2ecc71', '#3498db', '#9b59b6', '#e67e22'];
@@ -120,14 +133,15 @@ export class Renderer {
         } else if (type === TileType.Floor) {
           this.drawFloor(px, py, ts, x, y, time);
         }
-        if (type === TileType.Desk) this.drawDesk(px, py, ts);
+        if (type === TileType.Desk) this.drawDesk(px, py, ts, x, y);
         else if (type === TileType.Plant) this.drawPlant(px, py, ts, time);
         else if (type === TileType.Couch) this.drawCouch(px, py, ts);
-        else if (type === TileType.Whiteboard) this.drawWhiteboard(px, py, ts);
+        else if (type === TileType.Whiteboard) this.drawWhiteboard(px, py, ts, time);
         else if (type === TileType.Bookshelf) this.drawBookshelf(px, py, ts);
         else if (type === TileType.Printer) this.drawPrinter(px, py, ts, time);
+        else if (type === TileType.PrinterJam) this.drawPrinterJam(px, py, ts, time);
         else if (type === TileType.Window) this.drawWindow(px, py, ts, time, atm);
-        else if (type === TileType.Clock) this.drawClock(px, py, ts);
+        else if (type === TileType.Clock) this.drawClock(px, py, ts, time);
         else if (type === TileType.Poster) this.drawPoster(px, py, ts, x, y);
         else if (type === TileType.Carpet) this.drawCarpet(px, py, ts, x, y);
         else if (type === TileType.Lamp) this.drawLamp(px, py, ts, time, atm);
@@ -156,6 +170,24 @@ export class Renderer {
         else if (type === TileType.ServerRack) this.drawServerRack(px, py, ts, time, x, y);
         else if (type === TileType.ServerRoomGlass) this.drawServerRoomGlass(px, py, ts, time, x, y);
         else if (type === TileType.ZoneLabel) this.drawZoneLabel(px, py, ts, time, x, y);
+        else if (type === TileType.AbsentSign) this.drawAbsentSign(px, py, ts, time);
+        else if (type === TileType.LunchTable) this.drawLunchTable(px, py, ts, time, x, y);
+        else if (type === TileType.WindowPlant) this.drawWindowPlant(px, py, ts, time);
+        else if (type === TileType.PingPong) this.drawPingPong(px, py, ts, time);
+        else if (type === TileType.BirthdayCake) this.drawBirthdayCake(px, py, ts, time);
+        else if (type === TileType.WelcomeMat) this.drawWelcomeMat(px, py, ts, time);
+        else if (type === TileType.MeetingGlass) this.drawMeetingGlass(px, py, ts, time, x, y);
+        else if (type === TileType.MeetingWhiteboard) this.drawMeetingWhiteboard(px, py, ts, time);
+        else if (type === TileType.BarStool) this.drawBarStool(px, py, ts, time);
+        else if (type === TileType.VisitorSofa) this.drawVisitorSofa(px, py, ts, time);
+        else if (type === TileType.CompanyLogo) this.drawCompanyLogo(px, py, ts, time);
+        else if (type === TileType.MagazineRack) this.drawMagazineRack(px, py, ts, time);
+        else if (type === TileType.AirConditioner) this.drawAirConditioner(px, py, ts, time);
+        else if (type === TileType.CeilingLight) this.drawCeilingLight(px, py, ts, time, atm, x, y);
+        else if (type === TileType.FireExtinguisher) this.drawFireExtinguisher(px, py, ts, time);
+        else if (type === TileType.FloorArrow) this.drawFloorArrow(px, py, ts, time, x, y);
+        else if (type === TileType.WallTV) this.drawWallTV(px, py, ts, time);
+        else if (type === TileType.KPIBoard) this.drawKPIBoard(px, py, ts, time, x, y);
       }
     }
 
@@ -176,6 +208,9 @@ export class Renderer {
     // Office cat
     if (this.officeCat) this.drawCat(this.officeCat, ts, time);
 
+    // 🛵 外卖员 — 前台等外卖来拿
+    if (this.deliveryPerson) this.drawDeliveryPerson(this.deliveryPerson, ts, time);
+
     // Kanban overlay
     if (this.kanbanBoard) this.drawKanbanOverlay(ts, time);
 
@@ -183,7 +218,7 @@ export class Renderer {
     this.emitAmbientParticles(ts, time, atm);
 
     // Agents (sorted by Y for depth) — skip agents who've left
-    [...agents].filter(a => !a.hasLeftOffice).sort((a, b) => a.y - b.y).forEach(a => {
+    [...agents].filter(a => !a.hasLeftOffice && !a.isAbsent).sort((a, b) => a.y - b.y).forEach(a => {
       this.emitStateParticles(a, ts, time);
       this.drawAgent(a, ts, time);
     });
@@ -267,31 +302,164 @@ export class Renderer {
   // ---- Floor & Wall ----
   private drawFloor(x: number, y: number, ts: number, tx: number, ty: number, _t: number): void {
     const c = this.ctx;
-    // 两房间地板 — 左房间暖米色，右房间暖棕色 (参考 pablodelucca/pixel-agents)
+    // 🏗️ 区域检测 — 根据位置判断地面材质
     const isLeftRoom = tx < 10;
     const isRightRoom = tx >= 11;
-    const isCorridor = tx === 10;
+    const isCorridor = tx >= 8 && tx <= 10 && ty >= 7;
+    // 茶水间区域（右下方，y>=7 的右房间）— 瓷砖地面
+    const isTeaRoom = tx >= 11 && ty >= 7;
+    // 卫生间区域 — 蓝色瓷砖
+    const isRestroomArea = tx >= 17 && ty >= 8;
+    // 入口区域（y=10）— 大理石地面
+    const isEntrance = ty >= 10;
+
     let base1: string, base2: string, edgeColor: string;
-    if (isLeftRoom) {
+    if (isRestroomArea) {
+      // 🚻 卫生间 — 浅蓝防滑瓷砖
+      base1 = '#a8c8d8'; base2 = '#98b8c8'; edgeColor = 'rgba(120,170,200,0.3)';
+    } else if (isTeaRoom) {
+      // ☕ 茶水间 — 米白瓷砖（易清洁）
+      base1 = '#d8c8a8'; base2 = '#ccb898'; edgeColor = 'rgba(160,140,110,0.25)';
+    } else if (isEntrance) {
+      // 🚪 入口 — 灰色大理石
+      base1 = '#7a7a8a'; base2 = '#6e6e7e'; edgeColor = 'rgba(100,100,120,0.2)';
+    } else if (isLeftRoom) {
+      // 🪵 左房间办公区 — 暖色木地板
       base1 = '#c8b090'; base2 = '#bca484'; edgeColor = 'rgba(140,120,90,0.15)';
     } else if (isRightRoom) {
+      // 🪵 右房间办公区 — 深色木地板
       base1 = '#8a7058'; base2 = '#7e664e'; edgeColor = 'rgba(90,70,50,0.15)';
     } else if (isCorridor) {
+      // 🟫 走廊 — 深色地毯
       base1 = '#5a5068'; base2 = '#524860'; edgeColor = 'rgba(70,60,80,0.15)';
     } else {
       base1 = '#4e4e72'; base2 = '#48486a'; edgeColor = 'rgba(0,0,0,0.1)';
     }
-    // Checkerboard pattern
+
+    // 基础色块
     c.fillStyle = (tx + ty) % 2 === 0 ? base1 : base2;
     c.fillRect(x, y, ts, ts);
-    // Subtle grain
-    c.strokeStyle = 'rgba(255,255,255,0.03)';
-    c.lineWidth = 0.5;
-    for (let i = 0; i < 2; i++) {
-      const gy = y + ts * 0.35 + i * (ts * 0.3);
-      c.beginPath(); c.moveTo(x + 2, gy); c.lineTo(x + ts - 2, gy); c.stroke();
+
+    // 🏗️ 根据材质绘制不同纹理
+    if (isTeaRoom || isRestroomArea) {
+      // ☕🚻 瓷砖地面 — 方格瓷砖 + 勾缝线
+      // 每块瓷砖内部的浅色渐变
+      const tileGrad = c.createLinearGradient(x, y, x + ts, y + ts);
+      tileGrad.addColorStop(0, 'rgba(255,255,255,0.06)');
+      tileGrad.addColorStop(1, 'rgba(0,0,0,0.03)');
+      c.fillStyle = tileGrad;
+      c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+      // 勾缝线 — 明显的十字缝
+      c.strokeStyle = edgeColor;
+      c.lineWidth = 1;
+      c.beginPath();
+      c.moveTo(x + ts / 2, y + 1); c.lineTo(x + ts / 2, y + ts - 1);
+      c.moveTo(x + 1, y + ts / 2); c.lineTo(x + ts - 1, y + ts / 2);
+      c.stroke();
+      // 瓷砖表面的细微反光点
+      c.fillStyle = 'rgba(255,255,255,0.08)';
+      c.fillRect(x + ts * 0.2, y + ts * 0.15, 3, 2);
+      c.fillRect(x + ts * 0.6, y + ts * 0.4, 2, 2);
+    } else if (isRestroomArea) {
+      // 🚻 卫生间防滑瓷砖 — 额外加点防滑纹
+      c.strokeStyle = 'rgba(80,120,150,0.15)';
+      c.lineWidth = 0.5;
+      for (let i = 0; i < 3; i++) {
+        const ly = y + 4 + i * 5;
+        c.beginPath();
+        c.moveTo(x + 3, ly); c.lineTo(x + ts - 3, ly);
+        c.stroke();
+      }
+    } else if (isLeftRoom || isRightRoom) {
+      // 🪵 木地板 — 长条木板纹理，模拟真实木地板拼接
+      c.strokeStyle = 'rgba(0,0,0,0.06)';
+      c.lineWidth = 0.5;
+      // 纵向木纹线
+      const plankCount = 3;
+      for (let i = 1; i < plankCount; i++) {
+        const px2 = x + (ts / plankCount) * i;
+        c.beginPath(); c.moveTo(px2, y); c.lineTo(px2, y + ts); c.stroke();
+      }
+      // 横向拼接缝 — 错开排列，模拟真实木地板
+      if (ty % 2 === 0) {
+        c.beginPath();
+        c.moveTo(x + ts * 0.3, y); c.lineTo(x + ts * 0.3, y + ts);
+        c.moveTo(x + ts * 0.7, y); c.lineTo(x + ts * 0.7, y + ts);
+      } else {
+        c.beginPath();
+        c.moveTo(x + ts * 0.5, y); c.lineTo(x + ts * 0.5, y + ts);
+      }
+      c.strokeStyle = 'rgba(0,0,0,0.04)';
+      c.stroke();
+      // 木纹 — 细微波浪线
+      c.strokeStyle = 'rgba(0,0,0,0.03)';
+      c.lineWidth = 0.5;
+      for (let i = 0; i < plankCount; i++) {
+        const startX = x + (ts / plankCount) * i + 2;
+        const plankW = ts / plankCount - 4;
+        for (let j = 0; j < 2; j++) {
+          const wy = y + 4 + j * (ts / 3);
+          c.beginPath();
+          c.moveTo(startX, wy);
+          c.quadraticCurveTo(startX + plankW * 0.5, wy + 1, startX + plankW, wy);
+          c.stroke();
+        }
+      }
+    } else if (isEntrance) {
+      // 🚪 大理石地面 —  subtle 石纹
+      c.strokeStyle = 'rgba(255,255,255,0.04)';
+      c.lineWidth = 0.5;
+      // 大理石纹理 — 不规则曲线
+      for (let i = 0; i < 3; i++) {
+        const sy = y + 4 + i * (ts / 3);
+        c.beginPath();
+        c.moveTo(x + 2, sy);
+        c.quadraticCurveTo(x + ts * 0.3, sy - 2, x + ts * 0.5, sy + 1);
+        c.quadraticCurveTo(x + ts * 0.7, sy + 3, x + ts - 2, sy);
+        c.stroke();
+      }
+    } else if (isCorridor) {
+      // 🟫 地毯 — 细微纤维纹理
+      c.fillStyle = 'rgba(255,255,255,0.02)';
+      for (let i = 0; i < 6; i++) {
+        const fx = x + 3 + ((i * 7 + tx * 3) % (ts - 6));
+        const fy = y + 3 + ((i * 11 + ty * 5) % (ts - 6));
+        c.fillRect(fx, fy, 1, 2);
+      }
     }
-    // Tile edge
+
+    // 🪩 瓷砖地板反射 — 茶水间/卫生间的亮面瓷砖在灯下有反光效果
+    if (isTeaRoom || isRestroomArea) {
+      const lampPositions = [
+        { lx: 14, ly: 1 }, { lx: 14, ly: 4 }, // 右房间灯
+        { lx: 4, ly: 1 }, { lx: 4, ly: 4 },   // 左房间灯
+      ];
+      for (const lamp of lampPositions) {
+        const dx = tx - lamp.lx;
+        const dy = ty - lamp.ly;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 6 && dist > 0) {
+          // 灯光在瓷砖上的反射 — 越近越亮，模拟光滑瓷砖表面
+          const reflectionStrength = Math.max(0, 0.18 - dist * 0.03);
+          const shimmer = Math.sin(_t * 1.5 + tx * 2 + ty * 3) * 0.02;
+          const alpha = Math.max(0, reflectionStrength + shimmer);
+          if (alpha > 0.01) {
+            // 反射光斑 — 椭圆形高光，模拟灯光在光滑瓷砖上的漫反射
+            const grad = c.createRadialGradient(
+              x + ts / 2, y + ts / 2, 0,
+              x + ts / 2, y + ts / 2, ts * 0.6
+            );
+            grad.addColorStop(0, `rgba(255,240,200,${alpha})`);
+            grad.addColorStop(0.5, `rgba(255,240,200,${alpha * 0.4})`);
+            grad.addColorStop(1, 'rgba(255,240,200,0)');
+            c.fillStyle = grad;
+            c.fillRect(x, y, ts, ts);
+          }
+        }
+      }
+    }
+
+    // 通用：tile 边框
     c.strokeStyle = edgeColor;
     c.lineWidth = 0.5;
     c.strokeRect(x + 0.5, y + 0.5, ts - 1, ts - 1);
@@ -343,6 +511,18 @@ export class Renderer {
     // 📢 励志标语 — 偶尔出现在墙壁上
     if (tx > 0 && tx < this.tileMap.width - 1 && ty === 0 && tx % 10 === 7) {
       this.drawMotivationPoster(x, y, ts);
+    }
+    // 🏆 公司荣誉墙 — 顶部墙壁上的公司照片/奖杯
+    if (tx > 0 && tx < this.tileMap.width - 1 && ty === 0 && tx === 2) {
+      this.drawCorporatePhoto(x, y, ts, time);
+    }
+    // 🏅 团队成就奖 — 走廊隔墙上的团队奖项展示
+    if (tx > 0 && tx < this.tileMap.width - 1 && ty === 7 && (tx === 8 || tx === 9)) {
+      this.drawTeamAward(x, y, ts, time, tx);
+    }
+    // 📜 公司发展历程 — 底部走廊墙上的公司时间线
+    if (tx > 0 && tx < this.tileMap.width - 1 && ty === 10 && tx === 12) {
+      this.drawCompanyTimeline(x, y, ts, time);
     }
   }
 
@@ -401,7 +581,146 @@ export class Renderer {
     c.fillText(p.sub, x + ts / 2, y + ts / 2 + 7);
   }
 
-  private drawDesk(x: number, y: number, ts: number): void {
+  // 🏆 公司荣誉照片墙 — 像真实办公室墙上的团队合影/公司荣誉
+  private drawCorporatePhoto(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+    // 木质相框
+    c.fillStyle = '#5c3a1e';
+    c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+    c.fillStyle = '#8b6914';
+    c.fillRect(x + 2, y + 2, ts - 4, ts - 4);
+    // 照片内容 — 模拟团队合影（彩色方块小人）
+    c.fillStyle = '#e8e0d0';
+    c.fillRect(x + 3, y + 3, ts - 6, ts - 6);
+    // 天空背景
+    c.fillStyle = '#87ceeb';
+    c.fillRect(x + 4, y + 3, ts - 8, ts / 3);
+    // 地面
+    c.fillStyle = '#90ee90';
+    c.fillRect(x + 4, y + ts * 2 / 3, ts - 8, ts / 3 - 3);
+    // 团队成员 — 彩色小方块
+    const teamColors = ['#e94560', '#4a90d9', '#4ad97a', '#d9a94a', '#a94ad9'];
+    for (let i = 0; i < 5; i++) {
+      const px = x + 5 + i * 5;
+      const py = y + ts * 2 / 3 - 6;
+      // 身体
+      c.fillStyle = teamColors[i];
+      c.fillRect(px, py + 2, 4, 4);
+      // 头
+      c.fillStyle = '#e8c39e';
+      c.fillRect(px + 1, py, 2, 2);
+    }
+    // 照片标签
+    c.fillStyle = '#333';
+    c.font = `bold ${Math.max(5, ts - 20)}px sans-serif`;
+    c.textAlign = 'center';
+    c.fillText('TEAM', x + ts / 2, y + ts - 2);
+  }
+
+  // 🏅 团队奖项展示 — 隔墙上的团队成就/奖杯展示
+  private drawTeamAward(x: number, y: number, ts: number, t: number, tx: number): void {
+    const c = this.ctx;
+    const isFrontend = tx === 8;
+    // 展示柜底色
+    c.fillStyle = '#1a2a3e';
+    c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+    // 玻璃面板
+    c.fillStyle = 'rgba(90,184,232,0.15)';
+    c.fillRect(x + 3, y + 3, ts - 6, ts - 6);
+    // 边框
+    c.strokeStyle = '#8ab4d8';
+    c.lineWidth = 1;
+    c.strokeRect(x + 2, y + 2, ts - 4, ts - 4);
+    if (isFrontend) {
+      // 🎨 前端团队奖项 — "最佳 UI 设计奖"
+      // 奖杯
+      c.fillStyle = '#fbbf24';
+      c.fillRect(x + ts / 2 - 4, y + ts / 3 - 2, 8, 6);
+      c.fillStyle = '#f59e0b';
+      c.fillRect(x + ts / 2 - 2, y + ts / 3 + 4, 4, 3);
+      c.fillRect(x + ts / 2 - 5, y + ts / 3 + 7, 10, 2);
+      // 奖杯闪光
+      if (Math.sin(t * 3) > 0) {
+        c.fillStyle = 'rgba(255,255,255,0.6)';
+        c.fillRect(x + ts / 2 - 1, y + ts / 3, 2, 2);
+      }
+      // 奖项标签
+      c.fillStyle = '#60a5fa';
+      c.font = `bold ${Math.max(5, ts - 18)}px sans-serif`;
+      c.textAlign = 'center';
+      c.fillText('🎨 前端团队', x + ts / 2, y + ts - 3);
+    } else {
+      // ⚙️ 后端团队奖项 — "最佳架构奖"
+      // 奖牌
+      c.fillStyle = '#c0c0c0';
+      c.beginPath();
+      c.arc(x + ts / 2, y + ts / 2 - 1, 6, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = '#fbbf24';
+      c.beginPath();
+      c.arc(x + ts / 2, y + ts / 2 - 1, 4, 0, Math.PI * 2);
+      c.fill();
+      // 绶带
+      c.fillStyle = '#e94560';
+      c.fillRect(x + ts / 2 - 1, y + ts / 2 - 8, 2, 7);
+      // 奖牌文字
+      c.fillStyle = '#333';
+      c.font = `bold ${Math.max(4, ts - 20)}px sans-serif`;
+      c.textAlign = 'center';
+      c.fillText('⭐', x + ts / 2, y + ts / 2 + 1);
+      // 奖项标签
+      c.fillStyle = '#4ade80';
+      c.font = `bold ${Math.max(5, ts - 18)}px sans-serif`;
+      c.fillText('⚙️ 后端团队', x + ts / 2, y + ts - 3);
+    }
+  }
+
+  // 📜 公司发展历程时间线 — 走廊墙上的里程碑展示
+  private drawCompanyTimeline(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+    // 时间线背景板
+    c.fillStyle = '#2a2a3e';
+    c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+    c.fillStyle = '#333350';
+    c.fillRect(x + 2, y + 2, ts - 4, ts - 4);
+    // 时间线轴线
+    c.strokeStyle = '#6366f1';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(x + 4, y + ts / 2);
+    c.lineTo(x + ts - 4, y + ts / 2);
+    c.stroke();
+    // 里程碑节点
+    const milestones = [
+      { x: 0.2, label: '2024', color: '#e94560', sub: '成立' },
+      { x: 0.5, label: '2025', color: '#4ade80', sub: 'A轮' },
+      { x: 0.8, label: '2026', color: '#fbbf24', sub: '扩张' },
+    ];
+    for (const m of milestones) {
+      const mx = x + ts * m.x;
+      const my = y + ts / 2;
+      // 节点圆点
+      c.fillStyle = m.color;
+      c.beginPath();
+      c.arc(mx, my, 3, 0, Math.PI * 2);
+      c.fill();
+      // 发光效果
+      c.fillStyle = m.color + '40';
+      c.beginPath();
+      c.arc(mx, my, 5, 0, Math.PI * 2);
+      c.fill();
+      // 年份标签
+      c.fillStyle = '#e0e0e0';
+      c.font = `bold ${Math.max(5, ts - 20)}px monospace`;
+      c.textAlign = 'center';
+      c.fillText(m.label, mx, my - 5);
+      c.fillStyle = '#94a3b8';
+      c.font = `${Math.max(4, ts - 22)}px sans-serif`;
+      c.fillText(m.sub, mx, my + 9);
+    }
+  }
+
+  private drawDesk(x: number, y: number, ts: number, tx: number, ty: number): void {
     const c = this.ctx;
     // 桌面 — 深色木纹
     c.fillStyle = '#7a5a2a';
@@ -462,6 +781,34 @@ export class Renderer {
     c.fillRect(x + ts * 3 / 4 - 1, y + ts / 2, 2, 4);
     c.fillRect(x + ts * 3 / 4 - 3, y + ts / 2 + 3, 6, 1);
 
+    // ⌨️ 键盘托盘 — 双显示器下方的小键盘，程序员标配三件套
+    // 键盘主体 — 深灰色薄矩形
+    c.fillStyle = '#2a2a2a';
+    c.fillRect(x + ts * 0.15, y + ts * 0.52, ts * 0.7, ts * 0.15);
+    // 键盘面 — 稍浅灰色
+    c.fillStyle = '#3a3a3a';
+    c.fillRect(x + ts * 0.17, y + ts * 0.53, ts * 0.66, ts * 0.12);
+    // 键帽行 — 模拟键盘按键排列
+    const keyColors = ['#555', '#5a5a5a', '#505050', '#585858'];
+    for (let row = 0; row < 3; row++) {
+      const keysPerRow = 10;
+      const keyW = (ts * 0.62) / keysPerRow;
+      const keyH = ts * 0.03;
+      const rowY = y + ts * (0.54 + row * 0.035);
+      // 每行偏移模拟真实键盘错列
+      const rowOffset = row === 1 ? keyW * 0.3 : row === 2 ? keyW * 0.5 : 0;
+      for (let k = 0; k < keysPerRow; k++) {
+        c.fillStyle = keyColors[(row + k) % keyColors.length];
+        c.fillRect(x + ts * 0.18 + rowOffset + k * keyW, rowY, keyW - 0.5, keyH);
+      }
+    }
+    // 空格键 — 底部中央长条
+    c.fillStyle = '#4a4a4a';
+    c.fillRect(x + ts * 0.35, y + ts * 0.64, ts * 0.3, ts * 0.025);
+    // 键盘边缘高光
+    c.fillStyle = 'rgba(255,255,255,0.05)';
+    c.fillRect(x + ts * 0.17, y + ts * 0.53, ts * 0.66, 1);
+
     // ⌨️ 机械键盘 — 桌面中央
     c.fillStyle = '#2a2a2a';
     c.fillRect(x + ts / 2 - 7, y + ts / 2 + 1, 14, 5);
@@ -490,11 +837,109 @@ export class Renderer {
     c.fillStyle = '#555';
     c.fillRect(x + ts / 2 + 9, y + ts / 2 + 1, 1, 1);
 
-    // 🪑 椅背（工位下方）
+    // 🪑 办公椅 — 人体工学椅，带靠背、扶手、轮子
+    const chairY = y + ts - 4;
+    // 五星底座 + 轮子
+    c.fillStyle = '#2a2a3e';
+    // 轮子（5 个，分布在底部）
+    const wheelPositions = [
+      [x + ts / 2 - 6, chairY + 1],
+      [x + ts / 2 - 3, chairY + 2],
+      [x + ts / 2, chairY + 3],
+      [x + ts / 2 + 3, chairY + 2],
+      [x + ts / 2 + 6, chairY + 1],
+    ];
+    for (const [wx, wy] of wheelPositions) {
+      c.beginPath();
+      c.arc(wx, wy, 1.5, 0, Math.PI * 2);
+      c.fill();
+    }
+    // 底座横杆
+    c.strokeStyle = '#3a3a4e';
+    c.lineWidth = 1;
+    c.beginPath();
+    c.moveTo(x + ts / 2 - 5, chairY + 1);
+    c.lineTo(x + ts / 2 + 5, chairY + 1);
+    c.stroke();
+    // 气压杆
+    c.fillStyle = '#555';
+    c.fillRect(x + ts / 2 - 1, chairY - 3, 2, 5);
+    // 坐垫 — 网面材质
+    c.fillStyle = '#3a3a52';
+    c.fillRect(x + ts / 2 - 5, chairY - 5, 10, 4);
+    c.fillStyle = '#4a4a62';
+    c.fillRect(x + ts / 2 - 4, chairY - 4, 8, 2);
+    // 靠背 — 高靠背人体工学设计
     c.fillStyle = '#3a3a4e';
-    c.fillRect(x + ts / 2 - 5, y + ts - 5, 10, 3);
-    c.fillStyle = '#4a4a5e';
-    c.fillRect(x + ts / 2 - 4, y + ts - 4, 8, 2);
+    c.fillRect(x + ts / 2 - 4, chairY - 9, 8, 5);
+    c.fillStyle = '#4a4a62';
+    c.fillRect(x + ts / 2 - 3, chairY - 8, 6, 3);
+    // 头枕
+    c.fillStyle = '#505068';
+    c.fillRect(x + ts / 2 - 2, chairY - 11, 4, 3);
+    // 扶手（左右各一个）
+    c.fillStyle = '#2a2a3e';
+    c.fillRect(x + ts / 2 - 6, chairY - 6, 2, 4);
+    c.fillRect(x + ts / 2 + 4, chairY - 6, 2, 4);
+    // 扶手顶部软垫
+    c.fillStyle = '#4a4a62';
+    c.fillRect(x + ts / 2 - 6, chairY - 7, 2, 2);
+    c.fillRect(x + ts / 2 + 4, chairY - 7, 2, 2);
+
+    // 💻 打字中 — 显示器发光效果！有人在工作，屏幕亮起来
+    const deskKey = `${tx},${ty}`;
+    if (this.typingDesks.has(deskKey)) {
+      // 屏幕发光 — 蓝色/绿色代码编辑器光
+      const glowIntensity = 0.2 + Math.sin(time * 3) * 0.08;
+      // 左显示器发光
+      const leftGlow = c.createRadialGradient(
+        x + ts / 4, y + ts / 4, 0,
+        x + ts / 4, y + ts / 4, ts / 2
+      );
+      leftGlow.addColorStop(0, `rgba(59,130,246,${glowIntensity})`);
+      leftGlow.addColorStop(1, 'rgba(59,130,246,0)');
+      c.fillStyle = leftGlow;
+      c.fillRect(x, y, ts / 2, ts / 2);
+      // 右显示器发光
+      const rightGlow = c.createRadialGradient(
+        x + ts * 3 / 4, y + ts / 4, 0,
+        x + ts * 3 / 4, y + ts / 4, ts / 2
+      );
+      rightGlow.addColorStop(0, `rgba(34,197,94,${glowIntensity * 0.8})`);
+      rightGlow.addColorStop(1, 'rgba(34,197,94,0)');
+      c.fillStyle = rightGlow;
+      c.fillRect(x + ts / 2, y, ts / 2, ts / 2);
+      // 代码行闪烁 — 模拟代码在屏幕上滚动
+      const codeLines = 5;
+      for (let i = 0; i < codeLines; i++) {
+        const linePhase = (time * 2 + i * 1.3) % 3;
+        if (linePhase < 2) {
+          const alpha = (1 - linePhase / 2) * 0.15;
+          const lineY = y + 4 + i * 5 + Math.sin(time + i) * 1;
+          // 左屏幕代码行
+          c.fillStyle = `rgba(59,130,246,${alpha})`;
+          c.fillRect(x + 5, lineY, 4 + Math.sin(i * 2) * 2, 1);
+          // 右屏幕代码行
+          c.fillStyle = `rgba(34,197,94,${alpha})`;
+          c.fillRect(x + ts / 2 + 5, lineY + 1, 3 + Math.cos(i * 3) * 2, 1);
+        }
+      }
+    } else if (this.idleDesks.has(deskKey)) {
+      // 🖥️ 无人工位 — 显示器关闭，屏幕变暗，只有待机 LED 灯
+      // 左显示器暗屏
+      c.fillStyle = 'rgba(0,0,0,0.7)';
+      c.fillRect(x + 5, y + 4, ts / 2 - 8, ts / 2 - 5);
+      // 左显示器待机 LED — 橙色闪烁
+      const ledBlink = Math.sin(time * 1.5 + tx * 3 + ty * 7) > 0 ? 1 : 0.3;
+      c.fillStyle = `rgba(255,165,0,${ledBlink})`;
+      c.fillRect(x + ts / 4 + 4, y + ts / 4 - 1, 2, 2);
+      // 右显示器暗屏
+      c.fillStyle = 'rgba(0,0,0,0.7)';
+      c.fillRect(x + ts / 2 + 3, y + 4, ts / 2 - 8, ts / 2 - 5);
+      // 右显示器待机 LED
+      c.fillStyle = `rgba(255,165,0,${ledBlink * 0.8})`;
+      c.fillRect(x + ts * 3 / 4 + 4, y + ts / 4 - 1, 2, 2);
+    }
   }
 
   private drawPlant(x: number, y: number, ts: number, t: number): void {
@@ -509,6 +954,754 @@ export class Renderer {
     c.fillStyle = '#5abb4a'; c.fillRect(x + ts / 2 + sw, y + 2, 4, 4);
   }
 
+  // 🌿 窗台绿植 — 窗户旁的小盆栽，像真实办公室里每个窗台上都有的那种
+  private drawWindowPlant(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+    const sw = Math.sin(t * 1.5 + x) * 0.5;
+    // 窗台（白色，像真实的窗台板）
+    c.fillStyle = '#e8e0d0';
+    c.fillRect(x + 1, y + ts - 8, ts - 2, 4);
+    c.fillStyle = '#d4c8b0';
+    c.fillRect(x + 1, y + ts - 5, ts - 2, 2);
+    // 小花盆 — 比桌面盆栽更小巧
+    c.fillStyle = '#c0392b'; // 红色陶土花盆
+    c.fillRect(x + ts / 2 - 4, y + ts - 14, 8, 7);
+    c.fillStyle = '#e74c3c';
+    c.fillRect(x + ts / 2 - 5, y + ts - 15, 10, 2);
+    // 泥土
+    c.fillStyle = '#5c3a1e';
+    c.fillRect(x + ts / 2 - 3, y + ts - 13, 6, 2);
+    // 藤蔓植物 — 垂吊下来，像真实的窗台绿萝/常春藤
+    c.fillStyle = '#4aaa3a';
+    c.fillRect(x + ts / 2 - 1 + sw * 0.3, y + ts - 16, 3, 4);
+    // 垂吊的藤蔓
+    c.fillStyle = '#3a8a2a';
+    c.fillRect(x + ts / 2 - 3 + sw, y + ts - 13, 2, 5 + Math.floor(Math.sin(t) * 2));
+    c.fillRect(x + ts / 2 + 2 + sw * 0.5, y + ts - 12, 2, 4 + Math.floor(Math.cos(t * 0.7) * 2));
+    // 叶子 — 小而圆
+    c.fillStyle = '#5abb4a';
+    c.fillRect(x + ts / 2 - 5 + sw, y + ts - 14, 3, 3);
+    c.fillRect(x + ts / 2 + 3 + sw * 0.7, y + ts - 13, 3, 3);
+    c.fillRect(x + ts / 2 - 2 + sw * 0.5, y + ts - 18, 4, 3);
+    // 新芽 — 顶部嫩绿
+    c.fillStyle = '#7acc5a';
+    c.fillRect(x + ts / 2 + sw * 0.4, y + ts - 20, 2, 3);
+  }
+
+  // ============================================
+  // 🏓 乒乓球桌 — 休息区的快乐源泉，绿色桌面+球网+乒乓球
+  // ============================================
+  private drawPingPong(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+    // 桌腿
+    c.fillStyle = '#555';
+    c.fillRect(x + 4, y + ts - 6, 3, 5);
+    c.fillRect(x + ts - 7, y + ts - 6, 3, 5);
+    // 桌面 — 经典绿色乒乓球桌
+    c.fillStyle = '#1a6b3a';
+    c.fillRect(x + 2, y + 4, ts - 4, ts - 10);
+    c.fillStyle = '#1e7a42';
+    c.fillRect(x + 3, y + 5, ts - 6, ts - 12);
+    // 白线 — 边线
+    c.strokeStyle = 'rgba(255,255,255,0.6)';
+    c.lineWidth = 1;
+    c.strokeRect(x + 3, y + 5, ts - 6, ts - 12);
+    // 中线
+    c.beginPath();
+    c.moveTo(x + ts / 2, y + 5);
+    c.lineTo(x + ts / 2, y + ts - 7);
+    c.stroke();
+    // 球网 — 横跨中间
+    c.fillStyle = '#ddd';
+    c.fillRect(x + 1, y + ts / 2 - 1, ts - 2, 2);
+    // 网柱
+    c.fillStyle = '#999';
+    c.fillRect(x, y + ts / 2 - 3, 2, 6);
+    c.fillRect(x + ts - 2, y + ts / 2 - 3, 2, 6);
+    // 🏓 乒乓球 — 弹跳动画
+    const ballX = x + ts / 2 + Math.sin(t * 4) * (ts / 4);
+    const ballBounce = Math.abs(Math.sin(t * 6)) * 4;
+    c.fillStyle = '#fff';
+    c.beginPath();
+    c.arc(ballX, y + ts / 2 - ballBounce, 2, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = 'rgba(255,255,255,0.3)';
+    c.beginPath();
+    c.arc(ballX, y + ts / 2 - ballBounce - 1, 1, 0, Math.PI * 2);
+    c.fill();
+  }
+
+  // ============================================
+  // 🎂 生日蛋糕 — 工位上的生日庆祝，蛋糕+蜡烛+气球
+  // ============================================
+  private drawBirthdayCake(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+    // 蛋糕底座 — 圆形
+    c.fillStyle = '#f5e6d0';
+    c.beginPath();
+    c.ellipse(x + ts / 2, y + ts / 2 + 3, ts / 3, ts / 5, 0, 0, Math.PI * 2);
+    c.fill();
+    // 蛋糕层 — 粉色奶油
+    c.fillStyle = '#ff9bb3';
+    c.fillRect(x + ts / 2 - 6, y + ts / 2 - 4, 12, 8);
+    // 奶油花边
+    c.fillStyle = '#ffb8d0';
+    for (let i = 0; i < 4; i++) {
+      c.beginPath();
+      c.arc(x + ts / 2 - 4 + i * 3, y + ts / 2 - 4, 2, 0, Math.PI * 2);
+      c.fill();
+    }
+    // 巧克力层
+    c.fillStyle = '#5c3a1e';
+    c.fillRect(x + ts / 2 - 5, y + ts / 2 + 1, 10, 3);
+    // 🕯️ 蜡烛 — 3 根彩色蜡烛
+    const candleColors = ['#e74c3c', '#3498db', '#f1c40f'];
+    for (let i = 0; i < 3; i++) {
+      const cx = x + ts / 2 - 4 + i * 4;
+      c.fillStyle = candleColors[i];
+      c.fillRect(cx, y + ts / 2 - 9, 2, 6);
+      // 蜡烛芯
+      c.fillStyle = '#333';
+      c.fillRect(cx, y + ts / 2 - 10, 2, 1);
+    }
+    // 🔥 火焰 — 闪烁效果
+    const flicker = Math.sin(t * 8) * 1;
+    c.fillStyle = '#ffa500';
+    c.beginPath();
+    c.ellipse(x + ts / 2 - 3 + flicker, y + ts / 2 - 12, 1.5, 2, 0, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#ff6600';
+    c.beginPath();
+    c.ellipse(x + ts / 2 + flicker * 0.5, y + ts / 2 - 13, 1, 1.5, 0, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#ffa500';
+    c.beginPath();
+    c.ellipse(x + ts / 2 + 3 - flicker, y + ts / 2 - 12, 1.5, 2, 0, 0, Math.PI * 2);
+    c.fill();
+    // 🎈 气球 — 飘在蛋糕旁边
+    const balloonBob = Math.sin(t * 2) * 2;
+    // 左气球
+    c.fillStyle = '#e74c3c';
+    c.beginPath();
+    c.ellipse(x + ts / 2 - 8, y + ts / 2 - 14 + balloonBob, 4, 5, -0.2, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = 'rgba(255,255,255,0.3)';
+    c.beginPath();
+    c.ellipse(x + ts / 2 - 9, y + ts / 2 - 15 + balloonBob, 1.5, 2, -0.2, 0, Math.PI * 2);
+    c.fill();
+    // 气球线
+    c.strokeStyle = '#999';
+    c.lineWidth = 0.5;
+    c.beginPath();
+    c.moveTo(x + ts / 2 - 8, y + ts / 2 - 9 + balloonBob);
+    c.quadraticCurveTo(x + ts / 2 - 6, y + ts / 2 - 5, x + ts / 2 - 5, y + ts / 2 - 2);
+    c.stroke();
+    // 右气球
+    c.fillStyle = '#3498db';
+    c.beginPath();
+    c.ellipse(x + ts / 2 + 8, y + ts / 2 - 14 - balloonBob, 4, 5, 0.2, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = 'rgba(255,255,255,0.3)';
+    c.beginPath();
+    c.ellipse(x + ts / 2 + 7, y + ts / 2 - 15 - balloonBob, 1.5, 2, 0.2, 0, Math.PI * 2);
+    c.fill();
+    // 气球线
+    c.strokeStyle = '#999';
+    c.lineWidth = 0.5;
+    c.beginPath();
+    c.moveTo(x + ts / 2 + 8, y + ts / 2 - 9 - balloonBob);
+    c.quadraticCurveTo(x + ts / 2 + 6, y + ts / 2 - 5, x + ts / 2 + 5, y + ts / 2 - 2);
+    c.stroke();
+    // ✨ 闪闪发光粒子
+    if (Math.sin(t * 5) > 0.5) {
+      c.fillStyle = '#ffd700';
+      c.fillRect(x + ts / 2 - 10, y + ts / 2 - 16, 1, 1);
+      c.fillRect(x + ts / 2 + 10, y + ts / 2 - 10, 1, 1);
+      c.fillRect(x + ts / 2 + 5, y + ts / 2 - 18, 1, 1);
+    }
+  }
+
+  // 🚪 入口迎宾地垫 — 电梯口的 "Welcome" 地垫，真实办公室标配
+  private drawWelcomeMat(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+    // 地垫底色 — 深灰色橡胶材质
+    c.fillStyle = '#3a3a4a';
+    c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+
+    // 地垫边框 — 红色包边
+    c.strokeStyle = '#e94560';
+    c.lineWidth = 2;
+    c.strokeRect(x + 2, y + 2, ts - 4, ts - 4);
+
+    // 橡胶纹理 — 细密斜线
+    c.strokeStyle = 'rgba(255,255,255,0.04)';
+    c.lineWidth = 0.5;
+    for (let i = -ts; i < ts * 2; i += 3) {
+      c.beginPath();
+      c.moveTo(x + i, y + 1);
+      c.lineTo(x + i + ts / 2, y + ts - 1);
+      c.stroke();
+    }
+
+    // "WELCOME" 文字
+    c.fillStyle = '#e94560';
+    c.font = `bold ${Math.max(6, ts - 16)}px monospace`;
+    c.textAlign = 'center';
+    c.fillText('WELCOME', x + ts / 2, y + ts / 2 + 3);
+
+    // 地垫磨损效果 — 偶尔有几处颜色稍浅（用久了）
+    const wear = Math.sin(t * 0.1) * 0.5 + 0.5;
+    if (wear > 0.8) {
+      c.fillStyle = 'rgba(255,255,255,0.06)';
+      c.fillRect(x + ts / 3, y + ts / 2, ts / 4, 2);
+    }
+  }
+
+  // ============================================
+  // 🏢 会议室玻璃隔断 — 半透明玻璃墙，能看到里面开会
+  // ============================================
+  private drawMeetingGlass(x: number, y: number, ts: number, t: number, _tx: number, _ty: number): void {
+    const c = this.ctx;
+    // 玻璃底色 — 半透明蓝灰色
+    const glassAlpha = 0.15 + Math.sin(t * 0.3) * 0.03;
+    c.fillStyle = `rgba(42,74,106,${glassAlpha})`;
+    c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+
+    // 玻璃高光 — 模拟真实玻璃的反光
+    const glare = Math.sin(t * 0.7 + _tx * 0.2) * 0.5 + 0.5;
+    if (glare > 0.6) {
+      c.fillStyle = `rgba(255,255,255,${(glare - 0.6) * 0.4})`;
+      c.fillRect(x + 3, y + 3, ts / 3, ts / 4);
+    }
+
+    // 金属边框 — 银色铝合金框架
+    c.strokeStyle = '#8ab4d8';
+    c.lineWidth = 1.5;
+    c.strokeRect(x + 1.5, y + 1.5, ts - 3, ts - 3);
+
+    // 金属立柱 — 模拟框架的垂直支撑
+    c.fillStyle = '#9ab8d0';
+    c.fillRect(x + ts / 2 - 1, y + 1, 2, ts - 2);
+
+    // "MEETING" 磨砂文字 — 像真实办公室的玻璃门上印的那种
+    c.fillStyle = `rgba(255,255,255,${0.2 + Math.sin(t * 0.5) * 0.05})`;
+    c.font = `bold ${Math.max(6, ts - 18)}px monospace`;
+    c.textAlign = 'center';
+    c.fillText('MEETING', x + ts / 2, y + ts / 2 + 3);
+
+    // 门把手 — 右侧小圆点，像真实的玻璃门
+    c.fillStyle = '#bbb';
+    c.beginPath();
+    c.arc(x + ts - 5, y + ts / 2, 2, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#999';
+    c.beginPath();
+    c.arc(x + ts - 5, y + ts / 2, 1, 0, Math.PI * 2);
+    c.fill();
+
+    // 磨砂条纹 — 中间一条水平的磨砂带，像真实玻璃隔断
+    c.fillStyle = 'rgba(200,220,240,0.12)';
+    c.fillRect(x + 2, y + ts / 2 - 2, ts - 4, 4);
+
+    // 如果会议室有人在开会，玻璃上会有模糊的人影
+    if (this.meetingRoomActive && this.meetingAgentCount >= 2) {
+      // 模糊人影剪影
+      c.fillStyle = `rgba(0,0,0,${0.08 + Math.sin(t * 0.5) * 0.02})`;
+      const silhouetteCount = Math.min(this.meetingAgentCount, 4);
+      for (let i = 0; i < silhouetteCount; i++) {
+        const sx = x + 4 + i * ((ts - 8) / silhouetteCount);
+        const sway = Math.sin(t * 0.8 + i) * 1;
+        // 头部
+        c.beginPath();
+        c.arc(sx + 3 + sway, y + ts / 3, 3, 0, Math.PI * 2);
+        c.fill();
+        // 身体
+        c.fillRect(sx + sway, y + ts / 3 + 3, 6, ts / 3 - 3);
+      }
+    }
+  }
+
+  // 📋 会议室白板 — 带议程和便利贴，开会时显示会议主题
+  private drawMeetingWhiteboard(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+    // 白板底色 + 金属边框
+    c.fillStyle = '#f0f0f5'; c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+    c.fillStyle = '#e8e8f0'; c.fillRect(x + 2, y + 2, ts - 4, ts - 4);
+    c.strokeStyle = '#888'; c.lineWidth = 1; c.strokeRect(x + 1, y + 1, ts - 2, ts - 2);
+
+    // 白板笔槽（底部）
+    c.fillStyle = '#666'; c.fillRect(x + 4, y + ts - 5, ts - 8, 2);
+    // 笔（红、蓝、黑）
+    c.fillStyle = '#e74c3c'; c.fillRect(x + 5, y + ts - 5, 3, 1);
+    c.fillStyle = '#3498db'; c.fillRect(x + 9, y + ts - 5, 3, 1);
+    c.fillStyle = '#333'; c.fillRect(x + 13, y + ts - 5, 3, 1);
+
+    // 📌 会议议程标题
+    c.fillStyle = '#2c3e50';
+    c.font = 'bold 4px monospace';
+    c.textAlign = 'center';
+    c.fillText('AGENDA', x + ts / 2, y + 7);
+
+    // 议程条目 — 带颜色的线条
+    const agendaItems = ['需求评审', '技术方案', '排期确认'];
+    const agendaColors = ['#e74c3c', '#3498db', '#2ecc71'];
+    agendaItems.forEach((item, i) => {
+      const iy = y + 10 + i * 5;
+      // checkbox
+      c.fillStyle = agendaColors[i];
+      c.fillRect(x + 4, iy - 2, 3, 3);
+      // 文字
+      c.fillStyle = '#2c3e50';
+      c.font = '3px monospace';
+      c.textAlign = 'left';
+      c.fillText(item, x + 8, iy + 1);
+    });
+
+    // 🟡 黄色便利贴 — "别忘了！"
+    const noteX = x + ts - 8;
+    const noteY = y + 10;
+    c.fillStyle = '#fbbf24';
+    c.fillRect(noteX, noteY, 6, 5);
+    c.fillStyle = '#92400e';
+    c.font = '2px sans-serif';
+    c.textAlign = 'center';
+    c.fillText('别忘', noteX + 3, noteY + 3);
+    // 便利贴折角
+    c.fillStyle = '#e8a820';
+    c.fillRect(noteX + 4, noteY + 3, 2, 2);
+
+    // 开会时：白板高亮 + 当前议题闪烁
+    if (this.meetingRoomActive && this.meetingAgentCount >= 2) {
+      // 白板边缘微光
+      c.fillStyle = `rgba(74,144,217,${0.1 + Math.sin(t * 2) * 0.05})`;
+      c.fillRect(x + 1, y + 1, ts - 2, 1);
+      // 当前议题高亮闪烁
+      const currentItem = Math.floor(t * 0.3) % agendaItems.length;
+      c.fillStyle = `rgba(231,76,60,${0.3 + Math.sin(t * 3) * 0.15})`;
+      c.fillRect(x + 3, y + 8 + currentItem * 5, ts - 6, 4);
+    }
+  }
+
+  // 🪑 茶水间吧台椅 — 高脚凳，打工人最爱的短暂休息点
+  private drawBarStool(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+    const cx = x + ts / 2;
+    // 五星脚底座
+    c.fillStyle = '#555';
+    c.fillRect(cx - 1, y + ts - 6, 2, 2);
+    // 5 条辐条 + 轮子
+    const spokeLen = 6;
+    for (let i = 0; i < 5; i++) {
+      const angle = (i / 5) * Math.PI * 2 - Math.PI / 2;
+      const ex = cx + Math.cos(angle) * spokeLen;
+      const ey = y + ts - 5 + Math.sin(angle) * spokeLen * 0.4;
+      c.strokeStyle = '#666';
+      c.lineWidth = 1;
+      c.beginPath();
+      c.moveTo(cx, y + ts - 5);
+      c.lineTo(ex, ey);
+      c.stroke();
+      // 小轮子
+      c.fillStyle = '#444';
+      c.beginPath();
+      c.arc(ex, ey, 1.5, 0, Math.PI * 2);
+      c.fill();
+    }
+    // 气压杆 — 银色金属
+    c.fillStyle = '#999';
+    c.fillRect(cx - 1.5, y + ts / 2 - 2, 3, ts / 2 - 3);
+    c.fillStyle = '#bbb';
+    c.fillRect(cx - 1, y + ts / 2 - 1, 2, ts / 2 - 4);
+    // 调节杆（侧面小突起）
+    c.fillStyle = '#888';
+    c.fillRect(cx + 2, y + ts * 3 / 4, 3, 2);
+    // 坐垫 — 圆形皮革，高脚凳比普通椅子高
+    c.fillStyle = '#5c3a1e';
+    c.beginPath();
+    c.ellipse(cx, y + ts / 2 - 2, 7, 4, 0, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#6b4423';
+    c.beginPath();
+    c.ellipse(cx, y + ts / 2 - 3, 6, 3, 0, 0, Math.PI * 2);
+    c.fill();
+    // 坐垫高光 — 模拟皮革光泽
+    c.fillStyle = 'rgba(255,255,255,0.15)';
+    c.beginPath();
+    c.ellipse(cx - 2, y + ts / 2 - 4, 3, 1.5, -0.3, 0, Math.PI * 2);
+    c.fill();
+    // 脚踏环 — 高脚凳的标志性特征，坐在上面脚可以踩着的金属环
+    const ringY = y + ts * 2 / 3;
+    c.strokeStyle = '#888';
+    c.lineWidth = 1;
+    c.beginPath();
+    c.ellipse(cx, ringY, 5, 2, 0, 0, Math.PI * 2);
+    c.stroke();
+    // 脚踏环高光
+    c.strokeStyle = 'rgba(255,255,255,0.2)';
+    c.beginPath();
+    c.ellipse(cx - 1, ringY - 0.5, 3, 1, -0.2, -Math.PI * 0.6, -Math.PI * 0.2);
+    c.stroke();
+  }
+
+  // 🛋️ 访客等候区沙发 — 比工位沙发更正式，带扶手和公司色
+  private drawVisitorSofa(x: number, y: number, ts: number, _t: number): void {
+    const c = this.ctx;
+    const cx = x + ts / 2;
+    // 沙发底座
+    c.fillStyle = '#3a5a7a';
+    c.fillRect(x + 2, y + ts - 10, ts - 4, 6);
+    // 靠背
+    c.fillStyle = '#4a6a8a';
+    c.fillRect(x + 2, y + 4, ts - 4, ts / 2 - 2);
+    c.fillStyle = '#5a7a9a';
+    c.fillRect(x + 3, y + 5, ts - 6, ts / 2 - 4);
+    // 坐垫 — 更厚实，显得正式
+    c.fillStyle = '#4a6a8a';
+    c.fillRect(x + 3, y + ts / 2 - 2, ts / 2 - 4, ts / 2 - 5);
+    c.fillRect(x + ts / 2 + 1, y + ts / 2 - 2, ts / 2 - 4, ts / 2 - 5);
+    // 坐垫高光
+    c.fillStyle = 'rgba(255,255,255,0.08)';
+    c.fillRect(x + 4, y + ts / 2 - 1, ts / 2 - 6, 2);
+    c.fillRect(x + ts / 2 + 2, y + ts / 2 - 1, ts / 2 - 6, 2);
+    // 扶手 — 左右各一个，比工位沙发更高更正式
+    c.fillStyle = '#3a5070';
+    c.fillRect(x + 1, y + 6, 4, ts - 12);
+    c.fillRect(x + ts - 5, y + 6, 4, ts - 12);
+    // 扶手顶部圆角效果
+    c.fillStyle = '#4a6080';
+    c.fillRect(x + 2, y + 5, 2, 2);
+    c.fillRect(x + ts - 4, y + 5, 2, 2);
+    // 公司色小抱枕
+    c.fillStyle = '#e94560';
+    c.beginPath();
+    c.arc(cx, y + ts / 2 + 1, 3, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#ff6b6b';
+    c.beginPath();
+    c.arc(cx, y + ts / 2, 2, 0, Math.PI * 2);
+    c.fill();
+  }
+
+  // 🏢 公司Logo墙 — 前台背景上的发光logo，访客第一眼看到的
+  private drawCompanyLogo(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+    const cx = x + ts / 2;
+    // 背景墙 — 深色面板
+    c.fillStyle = '#1a1a2e';
+    c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+    // 边框 — 金属质感
+    c.strokeStyle = '#3a3a5e';
+    c.lineWidth = 1;
+    c.strokeRect(x + 1, y + 1, ts - 2, ts - 2);
+    c.strokeStyle = 'rgba(255,255,255,0.05)';
+    c.strokeRect(x + 2, y + 2, ts - 4, ts - 4);
+    // 发光logo — 呼吸灯效果
+    const glowIntensity = 0.5 + 0.3 * Math.sin(t * 2);
+    c.fillStyle = `rgba(0, 255, 136, ${glowIntensity * 0.15})`;
+    c.fillRect(x + 3, y + 3, ts - 6, ts - 6);
+    // Logo文字
+    c.fillStyle = `rgba(0, 255, 136, ${0.6 + glowIntensity * 0.4})`;
+    c.font = `bold ${Math.max(8, ts - 12)}px monospace`;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText('PIXEL', cx, y + ts / 2 - 3);
+    c.font = `${Math.max(6, ts - 16)}px monospace`;
+    c.fillStyle = `rgba(100, 200, 255, ${0.5 + glowIntensity * 0.3})`;
+    c.fillText('AGENTS', cx, y + ts / 2 + 6);
+    c.textBaseline = 'alphabetic';
+    // 发光边框效果
+    c.shadowColor = 'rgba(0, 255, 136, 0.5)';
+    c.shadowBlur = 4 * glowIntensity;
+    c.strokeStyle = `rgba(0, 255, 136, ${glowIntensity * 0.6})`;
+    c.lineWidth = 0.5;
+    c.strokeRect(x + 3, y + 3, ts - 6, ts - 6);
+    c.shadowBlur = 0;
+  }
+
+  // 🧾 杂志架 — 访客等候区的阅读材料
+  private drawMagazineRack(x: number, y: number, ts: number, _t: number): void {
+    const c = this.ctx;
+    // 架子主体
+    c.fillStyle = '#6b5010';
+    c.fillRect(x + 2, y + 2, ts - 4, ts - 4);
+    c.fillStyle = '#8b6914';
+    c.fillRect(x + 3, y + 3, ts - 6, ts - 6);
+    // 隔板 — 三层
+    c.fillStyle = '#5c3a1e';
+    c.fillRect(x + 3, y + ts / 3, ts - 6, 1);
+    c.fillRect(x + 3, y + ts * 2 / 3, ts - 6, 1);
+    // 杂志/读物 — 不同颜色表示不同内容
+    const mags = [
+      { y: 0.12, color: '#3498db', w: 5 }, // 科技杂志
+      { y: 0.12, color: '#2ecc71', w: 4 }, // 健康杂志
+      { y: 0.12, color: '#e74c3c', w: 3 }, // 商业杂志
+      { y: 0.45, color: '#f39c12', w: 5 }, // 设计杂志
+      { y: 0.45, color: '#9b59b6', w: 4 }, // 生活杂志
+      { y: 0.78, color: '#1abc9c', w: 4 }, // 旅游杂志
+      { y: 0.78, color: '#e67e22', w: 3 }, // 美食杂志
+    ];
+    for (const mag of mags) {
+      const my = y + ts * mag.y;
+      c.fillStyle = mag.color;
+      c.fillRect(x + ts / 2 - mag.w / 2, my + 1, mag.w, ts / 3 - 3);
+      // 杂志标题线
+      c.fillStyle = 'rgba(255,255,255,0.4)';
+      c.fillRect(x + ts / 2 - mag.w / 2 + 1, my + 3, mag.w - 2, 1);
+      c.fillRect(x + ts / 2 - mag.w / 2 + 1, my + 5, mag.w - 4, 1);
+    }
+    // 架子顶部装饰
+    c.fillStyle = '#a07820';
+    c.fillRect(x + 1, y + 1, ts - 2, 2);
+  }
+
+  // ============================================
+  // 🌀 天花板空调出风口 — 每个办公室都有的中央空调，带动态出风效果
+  // ============================================
+  private drawAirConditioner(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+    // 出风口外框 — 银白色金属面板
+    c.fillStyle = '#e0e0e8';
+    c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+    c.fillStyle = '#d0d0d8';
+    c.fillRect(x + 2, y + 2, ts - 4, ts - 4);
+
+    // 出风格栅 — 多条横向百叶
+    const slatCount = 5;
+    const slatH = 2;
+    const gapH = (ts - 8 - slatCount * slatH) / (slatCount + 1);
+    for (let i = 0; i < slatCount; i++) {
+      const sy = y + 4 + i * (slatH + gapH);
+      // 百叶片 — 微微倾斜的角度
+      c.fillStyle = '#b0b0c0';
+      c.fillRect(x + 4, sy, ts - 8, slatH);
+      // 百叶阴影
+      c.fillStyle = 'rgba(0,0,0,0.1)';
+      c.fillRect(x + 4, sy + slatH, ts - 8, 1);
+    }
+
+    // 🌀 动态出风粒子 — 模拟冷风/暖风从空调吹出
+    const particleCount = 8;
+    for (let i = 0; i < particleCount; i++) {
+      // 每个粒子有不同相位，形成连续的气流感
+      const phase = (t * 0.8 + i * 0.7) % 3;
+      if (phase < 2) {
+        // 粒子从格栅中飘出，向下移动
+        const progress = phase / 2; // 0 → 1
+        const px = x + 4 + ((i * 3.7 + t * 2) % (ts - 12));
+        const py = y + ts + progress * 12;
+        const alpha = (1 - progress) * 0.35;
+
+        // 风粒子 — 小椭圆形
+        c.fillStyle = `rgba(200,220,255,${alpha.toFixed(2)})`;
+        c.beginPath();
+        c.ellipse(px, py, 2, 1.5, 0, 0, Math.PI * 2);
+        c.fill();
+
+        // 大颗粒水滴感（偶尔出现，像冷凝水）
+        if (i % 3 === 0) {
+          c.fillStyle = `rgba(180,210,240,${(alpha * 0.6).toFixed(2)})`;
+          c.beginPath();
+          c.ellipse(px + 1, py + 2, 1, 2.5, 0.2, 0, Math.PI * 2);
+          c.fill();
+        }
+      }
+    }
+
+    // 边框
+    c.strokeStyle = '#c0c0d0';
+    c.lineWidth = 1;
+    c.strokeRect(x + 1, y + 1, ts - 2, ts - 2);
+
+    // 指示灯 — 运行时绿色闪烁
+    const ledOn = Math.sin(t * 2) > -0.3;
+    c.fillStyle = ledOn ? '#4ade80' : '#2a3a2a';
+    c.fillRect(x + ts - 6, y + 3, 3, 3);
+    if (ledOn) {
+      c.fillStyle = 'rgba(74,222,128,0.3)';
+      c.beginPath();
+      c.arc(x + ts - 4.5, y + 4.5, 4, 0, Math.PI * 2);
+      c.fill();
+    }
+  }
+
+  // ============================================
+  // 💡 天花板 LED 灯盘 — 嵌入式办公室照明，随昼夜自动开关
+  private drawCeilingLight(x: number, y: number, ts: number, t: number, atm: AtmosphereState, tx: number, ty: number): void {
+    const c = this.ctx;
+
+    // 灯盘外壳 — 嵌入式白色铝制面板
+    c.fillStyle = '#e8e8f0';
+    c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+    c.fillStyle = '#dcdce4';
+    c.fillRect(x + 2, y + 2, ts - 4, ts - 4);
+
+    // 灯盘边框 — 银色金属质感
+    c.strokeStyle = '#c0c0d0';
+    c.lineWidth = 1;
+    c.strokeRect(x + 1, y + 1, ts - 2, ts - 2);
+
+    // 💡 灯光亮度计算 — 根据昼夜自动调节
+    const isDark = atm.ambientBrightness < 0.6;
+    const isDim = atm.ambientBrightness < 0.8;
+    const baseBrightness = isDark ? 0.9 : isDim ? 0.5 : 0.15;
+    const breathe = Math.sin(t * 1.2 + tx * 0.5 + ty * 0.3) * 0.05; // 微弱呼吸效果
+    const brightness = Math.max(0, Math.min(1, baseBrightness + breathe));
+
+    // 发光面 — LED 漫射面板
+    const panelGrad = c.createLinearGradient(x + 4, y + 4, x + ts - 4, y + ts - 4);
+    panelGrad.addColorStop(0, `rgba(255,248,220,${(brightness * 0.95).toFixed(2)})`);
+    panelGrad.addColorStop(0.5, `rgba(255,250,235,${brightness.toFixed(2)})`);
+    panelGrad.addColorStop(1, `rgba(255,245,210,${(brightness * 0.9).toFixed(2)})`);
+    c.fillStyle = panelGrad;
+    c.fillRect(x + 4, y + 4, ts - 8, ts - 8);
+
+    // 🌟 灯光光晕 — 向下的锥形光照效果
+    if (brightness > 0.3) {
+      const glowAlpha = brightness * 0.12;
+      const glowH = ts * 2.5; // 光晕向下延伸的高度
+      const glowGrad = c.createLinearGradient(x, y + ts, x, y + ts + glowH);
+      glowGrad.addColorStop(0, `rgba(255,245,200,${glowAlpha.toFixed(3)})`);
+      glowGrad.addColorStop(0.4, `rgba(255,240,180,${(glowAlpha * 0.4).toFixed(3)})`);
+      glowGrad.addColorStop(1, 'rgba(255,235,160,0)');
+      c.fillStyle = glowGrad;
+      // 锥形光 — 越往下越宽
+      c.beginPath();
+      c.moveTo(x + 4, y + ts);
+      c.lineTo(x + ts - 4, y + ts);
+      c.lineTo(x + ts + 8, y + ts + glowH);
+      c.lineTo(x - 8, y + ts + glowH);
+      c.closePath();
+      c.fill();
+    }
+
+    // 💡 LED 灯珠 — 面板上可见的小亮点（模拟 LED 阵列）
+    const ledCount = 3;
+    for (let i = 0; i < ledCount; i++) {
+      const lx = x + 6 + (i * (ts - 12)) / (ledCount - 1);
+      const ly = y + ts / 2;
+      const ledAlpha = brightness * 0.7;
+      c.fillStyle = `rgba(255,255,240,${ledAlpha.toFixed(2)})`;
+      c.fillRect(lx - 1, ly - 1, 2, 2);
+      // 每个 LED 的微小光晕
+      if (brightness > 0.4) {
+        c.fillStyle = `rgba(255,250,220,${(brightness * 0.15).toFixed(2)})`;
+        c.beginPath();
+        c.arc(lx, ly, 3, 0, Math.PI * 2);
+        c.fill();
+      }
+    }
+  }
+
+  // ============================================
+  // 🧯 灭火器 — 墙上必备的消防设备，红色醒目
+  // ============================================
+  private drawFireExtinguisher(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+
+    // 墙上固定支架
+    c.fillStyle = '#888';
+    c.fillRect(x + 4, y + 2, ts - 8, 2);
+    c.fillStyle = '#999';
+    c.fillRect(x + 6, y + 1, ts - 12, 2);
+
+    // 灭火器瓶身 — 红色圆柱体
+    const bx = x + ts / 2;
+    const bodyW = ts / 3;
+    const bodyH = ts * 0.55;
+    const bodyTop = y + ts * 0.3;
+
+    // 瓶身渐变 — 从鲜红到深红
+    const bodyGrad = c.createLinearGradient(bx - bodyW / 2, 0, bx + bodyW / 2, 0);
+    bodyGrad.addColorStop(0, '#a02020');
+    bodyGrad.addColorStop(0.3, '#e03030');
+    bodyGrad.addColorStop(0.5, '#f04040');
+    bodyGrad.addColorStop(0.7, '#e03030');
+    bodyGrad.addColorStop(1, '#a02020');
+    c.fillStyle = bodyGrad;
+
+    // 圆柱形瓶身（矩形 + 圆角）
+    const r = 3;
+    c.beginPath();
+    c.moveTo(bx - bodyW / 2 + r, bodyTop);
+    c.lineTo(bx + bodyW / 2 - r, bodyTop);
+    c.arcTo(bx + bodyW / 2, bodyTop, bx + bodyW / 2, bodyTop + r, r);
+    c.lineTo(bx + bodyW / 2, bodyTop + bodyH - r);
+    c.arcTo(bx + bodyW / 2, bodyTop + bodyH, bx + bodyW / 2 - r, bodyTop + bodyH, r);
+    c.lineTo(bx - bodyW / 2 + r, bodyTop + bodyH);
+    c.arcTo(bx - bodyW / 2, bodyTop + bodyH, bx - bodyW / 2, bodyTop + bodyH - r, r);
+    c.lineTo(bx - bodyW / 2, bodyTop + r);
+    c.arcTo(bx - bodyW / 2, bodyTop, bx - bodyW / 2 + r, bodyTop, r);
+    c.fill();
+
+    // 瓶身高光 — 左侧反光条
+    c.fillStyle = 'rgba(255,255,255,0.2)';
+    c.fillRect(bx - bodyW / 2 + 2, bodyTop + 2, 2, bodyH - 4);
+
+    // 白色标签区域 — "灭火器" 字样
+    c.fillStyle = '#fff';
+    c.fillRect(bx - bodyW / 2 + 2, bodyTop + 4, bodyW - 4, bodyH * 0.35);
+    c.fillStyle = '#c0392b';
+    c.font = `bold ${Math.max(5, ts * 0.22)}px sans-serif`;
+    c.textAlign = 'center';
+    c.fillText('消防', bx, bodyTop + bodyH * 0.22);
+    c.fillText('灭火器', bx, bodyTop + bodyH * 0.42);
+
+    // 顶部阀门/喷嘴 — 银色
+    c.fillStyle = '#bbb';
+    c.fillRect(bx - 2, bodyTop - 4, 4, 5);
+    c.fillStyle = '#ccc';
+    c.fillRect(bx - 1, bodyTop - 5, 2, 2);
+
+    // 喷嘴软管 — 黑色弯曲管
+    c.strokeStyle = '#333';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(bx + 2, bodyTop - 3);
+    c.quadraticCurveTo(bx + bodyW / 2 + 2, bodyTop - 2, bx + bodyW / 2 + 1, bodyTop + 6);
+    c.stroke();
+
+    // 喷嘴头 — 锥形
+    c.fillStyle = '#444';
+    c.beginPath();
+    c.moveTo(bx + bodyW / 2, bodyTop + 4);
+    c.lineTo(bx + bodyW / 2 + 4, bodyTop + 8);
+    c.lineTo(bx + bodyW / 2, bodyTop + 8);
+    c.fill();
+
+    // 压力表 — 小圆形，带指针
+    const gaugeX = bx - bodyW / 2 + 3;
+    const gaugeY = bodyTop + bodyH * 0.15;
+    const gaugeR = 3;
+    c.fillStyle = '#fff';
+    c.beginPath();
+    c.arc(gaugeX, gaugeY, gaugeR, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = '#666';
+    c.lineWidth = 0.5;
+    c.stroke();
+    // 指针 — 指向绿色区域（正常）
+    c.strokeStyle = '#333';
+    c.lineWidth = 0.8;
+    c.beginPath();
+    c.moveTo(gaugeX, gaugeY);
+    const needleAngle = -0.3 + Math.sin(t * 0.5) * 0.05; // 微微抖动，像真实压力表
+    c.lineTo(gaugeX + Math.cos(needleAngle) * 2, gaugeY + Math.sin(needleAngle) * 2);
+    c.stroke();
+    // 绿色区域
+    c.fillStyle = 'rgba(34,197,94,0.4)';
+    c.beginPath();
+    c.arc(gaugeX, gaugeY, gaugeR - 0.5, -0.8, 0.3);
+    c.lineTo(gaugeX, gaugeY);
+    c.fill();
+
+    // 安全插销 — 黄色小环
+    c.strokeStyle = '#fbbf24';
+    c.lineWidth = 1;
+    c.beginPath();
+    c.arc(bx - 1, bodyTop - 5, 1.5, 0, Math.PI * 2);
+    c.stroke();
+  }
+
   private drawCouch(x: number, y: number, ts: number): void {
     const c = this.ctx;
     c.fillStyle = '#a04040'; c.fillRect(x + 2, y + ts / 2 - 4, ts - 4, ts / 2 - 2);
@@ -518,14 +1711,45 @@ export class Renderer {
     c.fillRect(x + ts / 2 + 2, y + ts / 2 - 2, ts / 2 - 6, ts / 2 - 6);
   }
 
-  private drawWhiteboard(x: number, y: number, ts: number): void {
+  private drawWhiteboard(x: number, y: number, ts: number, _t: number): void {
     const c = this.ctx;
-    c.fillStyle = '#d0d0e0'; c.fillRect(x + 2, y + 2, ts - 4, ts - 4);
-    c.fillStyle = '#e8e8f0'; c.fillRect(x + 4, y + 4, ts - 8, ts - 8);
-    c.fillStyle = '#333';
-    c.fillRect(x + 6, y + 8, ts - 14, 2);
-    c.fillRect(x + 6, y + 13, ts - 20, 2);
-    c.fillRect(x + 6, y + 18, ts - 16, 2);
+    // 白板底色 + 边框
+    c.fillStyle = '#e0e0e8'; c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+    c.fillStyle = '#f0f0f8'; c.fillRect(x + 3, y + 3, ts - 6, ts - 6);
+    // 金属边框
+    c.strokeStyle = '#bbb'; c.lineWidth = 1; c.strokeRect(x + 1, y + 1, ts - 2, ts - 2);
+
+    // 📌 Sprint 看板 — 三列迷你版
+    const cols = [
+      { label: 'TODO', tasks: ['登录', 'API'], color: '#fbbf24' },
+      { label: 'DOING', tasks: ['设计'], color: '#3b82f6' },
+      { label: 'DONE', tasks: ['部署'], color: '#22c55e' },
+    ];
+    const colW = (ts - 10) / 3;
+    for (let ci = 0; ci < 3; ci++) {
+      const col = cols[ci];
+      const cx = x + 4 + ci * colW;
+      // 列标题
+      c.fillStyle = col.color;
+      c.fillRect(cx, y + 5, colW - 2, 5);
+      c.fillStyle = '#fff'; c.font = 'bold 4px monospace'; c.textAlign = 'center';
+      c.fillText(col.label, cx + colW / 2 - 1, y + 9);
+      // 任务便利贴
+      for (let ti = 0; ti < col.tasks.length; ti++) {
+        const noteColors = ['#fef08a', '#fca5a5', '#93c5fd', '#86efac', '#fdba74'];
+        c.fillStyle = noteColors[(ci * 2 + ti) % noteColors.length];
+        const ny = y + 12 + ti * 6;
+        c.fillRect(cx + 1, ny, colW - 4, 5);
+        // 便利贴阴影
+        c.fillStyle = 'rgba(0,0,0,0.1)';
+        c.fillRect(cx + 2, ny + 5, colW - 5, 1);
+        c.fillStyle = '#333'; c.font = '3px monospace'; c.textAlign = 'left';
+        c.fillText(col.tasks[ti], cx + 2, ny + 4);
+      }
+    }
+    // 🎨 右下角涂鸦 — 无聊时的杰作
+    c.fillStyle = '#94a3b8'; c.font = '4px sans-serif'; c.textAlign = 'right';
+    c.fillText('✏️', x + ts - 5, y + ts - 4);
   }
 
   private drawBookshelf(x: number, y: number, ts: number): void {
@@ -541,6 +1765,65 @@ export class Renderer {
     c.fillStyle = '#555'; c.fillRect(x + 4, y + 8, ts - 8, ts - 12);
     c.fillStyle = '#666'; c.fillRect(x + 6, y + 10, ts - 12, 6);
     if (Math.sin(t * 0.5) > 0) { c.fillStyle = '#fff'; c.fillRect(x + ts / 2 - 3, y + ts - 8, 6, 6); }
+  }
+
+  // 🖨️ 打印机卡纸 — 打印机故障，亮红灯，吐纸，打工人崩溃
+  private drawPrinterJam(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+
+    // 打印机机身 — 灰色
+    c.fillStyle = '#555';
+    c.fillRect(x + 4, y + 8, ts - 8, ts - 12);
+    c.fillStyle = '#666';
+    c.fillRect(x + 6, y + 10, ts - 12, 6);
+
+    // 🔴 错误指示灯 — 红色闪烁，像心跳报警一样
+    const errFlash = Math.sin(t * 6) > 0;
+    c.fillStyle = errFlash ? '#ff2222' : '#660000';
+    c.fillRect(x + 5, y + 9, 3, 3);
+    if (errFlash) {
+      c.fillStyle = 'rgba(255,34,34,0.25)';
+      c.beginPath();
+      c.arc(x + 6.5, y + 10.5, 5, 0, Math.PI * 2);
+      c.fill();
+    }
+
+    // 📄 卡住的纸 — 从出纸口吐出半截，微微颤动
+    const paperWobble = Math.sin(t * 4) * 1.5;
+    c.fillStyle = '#f5f5f0';
+    c.save();
+    c.translate(x + ts / 2 + paperWobble, y + ts - 6);
+    c.rotate(paperWobble * 0.05);
+    c.fillRect(-4, -2, 8, 10);
+    // 纸上的文字线（模拟打印了一半的文件）
+    c.fillStyle = '#999';
+    c.fillRect(-3, 0, 6, 1);
+    c.fillRect(-3, 2, 4, 1);
+    c.fillRect(-3, 4, 5, 1);
+    c.restore();
+
+    // ⚠️ 错误提示 — 小屏幕上显示 "ERR"
+    c.fillStyle = '#222';
+    c.fillRect(x + ts / 2 - 5, y + 10, 10, 5);
+    c.fillStyle = errFlash ? '#ff4444' : '#ff8888';
+    c.font = 'bold 4px monospace';
+    c.textAlign = 'center';
+    c.fillText('ERR', x + ts / 2, y + 14);
+
+    // 💥 散落的碎纸片 — 卡纸时掉在地上的碎屑
+    c.fillStyle = '#e8e8e0';
+    const scraps = [
+      { sx: x + 2, sy: y + ts - 2, sw: 3, sh: 2, rot: 0.3 },
+      { sx: x + ts - 6, sy: y + ts - 3, sw: 4, sh: 2, rot: -0.2 },
+      { sx: x + ts / 2 + 6, sy: y + ts - 1, sw: 2, sh: 2, rot: 0.5 },
+    ];
+    for (const s of scraps) {
+      c.save();
+      c.translate(s.x + s.sw / 2, s.y + s.sh / 2);
+      c.rotate(s.rot);
+      c.fillRect(-s.sw / 2, -s.sh / 2, s.sw, s.sh);
+      c.restore();
+    }
   }
 
   private drawCoffee(x: number, y: number, ts: number, t: number): void {
@@ -617,20 +1900,134 @@ export class Renderer {
       c.fillStyle = `rgba(255,255,200,${0.03 * atm.ambientBrightness})`;
       c.fillRect(x - ts / 4, y + ts, ts * 1.5, ts);
     }
+    // 🌧️ 雨天窗户特效 — 雨滴顺着玻璃滑落
+    if (atm.weather === 'rain') {
+      this.drawWindowRainDrops(x, y, ts, t);
+    }
   }
 
-  private drawClock(x: number, y: number, ts: number): void {
+  // 🌧️ 雨天窗户水滴 — 动态雨滴顺着玻璃流下，打工人最爱的看雨发呆效果
+  private drawWindowRainDrops(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+    // 多层雨滴效果
+    const dropCount = 5 + Math.floor(ts / 8);
+    for (let i = 0; i < dropCount; i++) {
+      // 每个雨滴有不同的起始位置和速度
+      const dropX = x + 4 + ((i * 7 + 3) % (ts - 8));
+      const speed = 0.3 + (i % 3) * 0.15;
+      const dropY = y + 4 + ((t * speed * 10 + i * 13) % (ts - 10));
+      const dropLen = 3 + (i % 3) * 2;
+      // 雨滴主体 — 半透明白色条纹
+      c.fillStyle = 'rgba(200,220,255,0.25)';
+      c.fillRect(dropX, dropY, 1, dropLen);
+      // 雨滴头部 — 稍亮的水珠
+      c.fillStyle = 'rgba(220,240,255,0.4)';
+      c.fillRect(dropX, dropY, 1, 1);
+      // 尾迹 — 淡淡的水痕
+      c.fillStyle = 'rgba(200,220,255,0.08)';
+      c.fillRect(dropX, dropY - 2, 1, 2);
+    }
+    // 大颗水珠 — 偶尔出现在窗玻璃上，慢慢往下滑
+    const beadCount = 2;
+    for (let i = 0; i < beadCount; i++) {
+      const beadX = x + 5 + ((i * 11 + 5) % (ts - 10));
+      const beadSpeed = 0.15 + i * 0.05;
+      const beadY = y + 4 + ((t * beadSpeed * 8 + i * 17) % (ts - 12));
+      const beadSize = 2 + (i % 2);
+      // 水珠高光
+      c.fillStyle = 'rgba(220,240,255,0.35)';
+      c.fillRect(beadX, beadY, beadSize, beadSize);
+      // 水珠阴影（模拟折射）
+      c.fillStyle = 'rgba(150,180,220,0.15)';
+      c.fillRect(beadX + 1, beadY + 1, beadSize, beadSize);
+      // 水珠上方的水痕
+      c.fillStyle = 'rgba(200,220,255,0.06)';
+      c.fillRect(beadX, beadY - 3, 1, 3);
+    }
+    // 窗框底部积水 — 像真实窗台积水一样
+    const puddleAlpha = 0.1 + Math.sin(t * 0.5) * 0.03;
+    c.fillStyle = `rgba(150,180,220,${puddleAlpha})`;
+    c.fillRect(x + 3, y + ts - 5, ts - 6, 3);
+    // 窗框上的水渍
+    c.strokeStyle = 'rgba(180,200,230,0.15)';
+    c.lineWidth = 0.5;
+    for (let i = 0; i < 3; i++) {
+      const dripX = x + 6 + i * (ts - 12) / 2;
+      const dripLen = 2 + Math.sin(t * 0.7 + i * 2) * 1;
+      c.beginPath();
+      c.moveTo(dripX, y + ts - 6);
+      c.lineTo(dripX, y + ts - 6 + dripLen);
+      c.stroke();
+    }
+    // 窗外模糊的雨景效果 — 灰色条纹
+    c.globalAlpha = 0.04;
+    c.fillStyle = '#8a9aae';
+    for (let i = 0; i < 4; i++) {
+      const rx = x + 4 + ((i * 9 + t * 3) % (ts - 8));
+      const ry = y + 4 + ((t * 5 + i * 11) % (ts - 8));
+      c.fillRect(rx, ry, 2, 1);
+    }
+    c.globalAlpha = 1;
+  }
+
+  private drawClock(x: number, y: number, ts: number, t: number): void {
     const c = this.ctx, cx = x + ts / 2, cy = y + ts / 2;
-    c.fillStyle = '#f0f0f0'; c.beginPath(); c.arc(cx, cy, ts / 2 - 3, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#2a2a3e'; c.beginPath(); c.arc(cx, cy, ts / 2 - 5, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#e0e0e0';
-    for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2 - Math.PI / 2, r = ts / 2 - 7; c.fillRect(cx + Math.cos(a) * r - 1, cy + Math.sin(a) * r - 1, 2, 2); }
+    const r = ts / 2 - 3;
+
+    // 表盘外圈 — 银色金属边框
+    c.fillStyle = '#c0c0c0'; c.beginPath(); c.arc(cx, cy, r + 2, 0, Math.PI * 2); c.fill();
+    // 表盘底色 — 白色
+    c.fillStyle = '#f8f8f8'; c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
+    // 表盘内圈 — 微妙的渐变效果
+    c.fillStyle = '#f0f0f5'; c.beginPath(); c.arc(cx, cy, r - 1, 0, Math.PI * 2); c.fill();
+
+    // 12 小时刻度 — 3/6/9/12 加粗
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+      const isMajor = i % 3 === 0;
+      const tickLen = isMajor ? 4 : 2;
+      const tickW = isMajor ? 2 : 1;
+      const outerR = r - 3;
+      const innerR = outerR - tickLen;
+      const cos = Math.cos(a), sin = Math.sin(a);
+      c.fillStyle = isMajor ? '#2a2a3e' : '#888';
+      c.save();
+      c.translate(cx + cos * (outerR + innerR) / 2, cy + sin * (outerR + innerR) / 2);
+      c.rotate(a + Math.PI / 2);
+      c.fillRect(-tickW / 2, -tickLen / 2, tickW, tickLen);
+      c.restore();
+    }
+
+    // 获取中国时间 (UTC+8)
     const now = new Date();
-    const hA = ((now.getHours() % 12) + now.getMinutes() / 60) / 12 * Math.PI * 2 - Math.PI / 2;
-    const mA = (now.getMinutes() + now.getSeconds() / 60) / 60 * Math.PI * 2 - Math.PI / 2;
-    c.strokeStyle = '#e0e0e0'; c.lineWidth = 2; c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(hA) * 6, cy + Math.sin(hA) * 6); c.stroke();
-    c.strokeStyle = '#bbb'; c.lineWidth = 1; c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(mA) * 8, cy + Math.sin(mA) * 8); c.stroke();
-    c.fillStyle = '#e94560'; c.beginPath(); c.arc(cx, cy, 1.5, 0, Math.PI * 2); c.fill();
+    const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+    const chinaTime = new Date(utcMs + 8 * 3600000);
+    const h = chinaTime.getHours() % 12;
+    const m = chinaTime.getMinutes();
+    const s = chinaTime.getSeconds();
+    const ms = chinaTime.getMilliseconds();
+
+    // 时针
+    const hA = (h + (m + s / 60) / 60) / 12 * Math.PI * 2 - Math.PI / 2;
+    const hLen = r * 0.45;
+    c.strokeStyle = '#1a1a2e'; c.lineWidth = 2.5; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(hA) * hLen, cy + Math.sin(hA) * hLen); c.stroke();
+
+    // 分针
+    const mA = (m + s / 60) / 60 * Math.PI * 2 - Math.PI / 2;
+    const mLen = r * 0.65;
+    c.strokeStyle = '#333'; c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(mA) * mLen, cy + Math.sin(mA) * mLen); c.stroke();
+
+    // 秒针 — 红色，流畅移动（含毫秒）
+    const sA = (s + ms / 1000) / 60 * Math.PI * 2 - Math.PI / 2;
+    const sLen = r * 0.78;
+    c.strokeStyle = '#e94560'; c.lineWidth = 0.8;
+    c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(sA) * sLen, cy + Math.sin(sA) * sLen); c.stroke();
+
+    // 中心圆点 — 红色
+    c.fillStyle = '#e94560'; c.beginPath(); c.arc(cx, cy, 2, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#fff'; c.beginPath(); c.arc(cx, cy, 0.8, 0, Math.PI * 2); c.fill();
   }
   private drawPoster(x: number, y: number, ts: number, tx: number, ty: number): void {
     const c = this.ctx; c.fillStyle = '#2a2a3e'; c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
@@ -712,6 +2109,21 @@ export class Renderer {
     c.fillStyle = '#95a5a6'; c.fillRect(x + 4, y + 3, ts - 10, ts - 6);
     c.fillStyle = '#bdc3c7'; c.fillRect(x + ts - 10, y + ts / 2, 2, 6);
     c.fillStyle = 'rgba(100,200,255,0.3)'; c.fillRect(x + 5, y + 5, 4, 2);
+    // 📌 冰箱门上的行政通知 — 打工人最烦看到的
+    // 黄色便利贴：「请勿存放过夜外卖」
+    c.fillStyle = '#fbbf24';
+    c.fillRect(x + 5, y + 8, 10, 6);
+    c.fillStyle = '#92400e';
+    c.font = '3px sans-serif';
+    c.textAlign = 'center';
+    c.fillText('勿放过', x + 10, y + 11);
+    c.fillText('夜外卖！', x + 10, y + 14);
+    // 粉色便利贴：「行政部提醒」
+    c.fillStyle = '#f9a8d4';
+    c.fillRect(x + 6, y + 16, 8, 4);
+    c.fillStyle = '#831843';
+    c.font = '3px sans-serif';
+    c.fillText('记得带饭', x + 10, y + 19);
   }
   private drawTrashCan(x: number, y: number, ts: number): void {
     const c = this.ctx;
@@ -952,6 +2364,25 @@ export class Renderer {
     if (Math.sin(t * 1.5) > 0) {
       c.fillStyle = 'rgba(255,200,50,0.3)';
       c.fillRect(x + 5, y + 7, ts / 2 - 4, ts - 14);
+    }
+    // 🥡 微波炉顶上堆着外卖盒 — 打工人真实写照
+    const takeoutColors = ['#e74c3c', '#f39c12', '#e67e22'];
+    for (let i = 0; i < 3; i++) {
+      const bx = x + 5 + i * 5;
+      const by = y + 1 - i * 1;
+      c.fillStyle = takeoutColors[i];
+      c.fillRect(bx, by, 5, 3);
+      c.fillStyle = 'rgba(255,255,255,0.3)';
+      c.fillRect(bx + 1, by + 1, 3, 1); // 盖子反光
+    }
+    // 偶尔冒热气 — 有人在热饭
+    if (Math.sin(t * 0.8) > 0.3) {
+      c.fillStyle = 'rgba(255,255,255,0.15)';
+      for (let i = 0; i < 2; i++) {
+        const sx = x + ts / 2 - 2 + Math.sin(t * 2 + i) * 2;
+        const sy = y + 2 - i * 3 + Math.sin(t * 1.5 + i) * 1;
+        c.fillRect(sx, sy, 2, 2);
+      }
     }
   }
 
@@ -1228,7 +2659,7 @@ export class Renderer {
     // 桶内阴影
     c.fillStyle = '#444';
     c.fillRect(x + ts / 2 - 4, y + ts / 3 + 3, 8, 4);
-    // 雨伞 — 不同颜色，像真实办公室一样各种各样
+    // 雨伞 — 动态数量，随拿取减少，像真实办公室一样
     const umbrellaColors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
     const umbrellaPositions = [
       { ox: -4, angle: -0.3 },
@@ -1236,7 +2667,8 @@ export class Renderer {
       { ox: 2, angle: 0.1 },
       { ox: 5, angle: 0.3 },
     ];
-    for (let i = 0; i < umbrellaPositions.length; i++) {
+    const count = Math.min(this.umbrellasRemaining, umbrellaPositions.length);
+    for (let i = 0; i < count; i++) {
       const pos = umbrellaPositions[i];
       const color = umbrellaColors[(i * 3 + 1) % umbrellaColors.length];
       const sway = Math.sin(t * 0.8 + i) * 0.5;
@@ -1257,6 +2689,13 @@ export class Renderer {
       c.fillRect(-1, -ts / 4, 1, ts / 4);
       c.fillRect(2, -ts / 4, 1, ts / 4);
       c.restore();
+    }
+    // 伞空了 — 空桶提示
+    if (this.umbrellasRemaining <= 0) {
+      c.fillStyle = 'rgba(255,255,255,0.15)';
+      c.font = '5px monospace';
+      c.textAlign = 'center';
+      c.fillText('空', x + ts / 2, y + ts / 2);
     }
     // 底部水滴（偶尔出现，像刚下雨回来）
     if (Math.sin(t * 0.3) > 0.3) {
@@ -1341,39 +2780,85 @@ export class Renderer {
     c.lineWidth = 2;
     c.strokeRect(x + 1, y + 1, ts - 2, ts - 2);
 
-    // 📝 便利贴1：黄色 — 行政通知
-    c.fillStyle = '#fbbf24';
-    c.fillRect(x + 4, y + 5, 8, 6);
-    c.fillStyle = '#92400e';
+    // 📢 动态公告内容 — 每 20 秒轮换一次，像真实办公室公告栏
+    // 获取中国时间决定显示什么
+    const now = new Date();
+    const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+    const chinaHour = new Date(utcMs + 8 * 3600000).getHours();
+    const chinaDay = new Date(utcMs + 8 * 3600000).getDay(); // 0=周日
+    // 轮换周期 20 秒
+    const cycleIndex = Math.floor(t / 20) % 6;
+
+    // 便利贴数据：[标题, 内容, 颜色, 文字色, 图钉色, 位置偏移]
+    const noticeSets: Array<{
+      title: string; content: string; noteColor: string; textColor: string; pinColor: string;
+      title2?: string; content2?: string; noteColor2?: string; textColor2?: string; pinColor2?: string;
+    }> = [
+      // 套装 0: 行政通知 + 生日提醒
+      { title: '通知', content: '下周体检', noteColor: '#fbbf24', textColor: '#92400e', pinColor: '#e94560',
+        title2: '🎂', content2: '4/15', noteColor2: '#f9a8d4', textColor2: '#9d174d', pinColor2: '#3b82f6' },
+      // 套装 1: 团建活动
+      { title: '🎉 团建', content: '周五聚餐', noteColor: '#86efac', textColor: '#166534', pinColor: '#f59e0b',
+        title2: 'KTV', content2: '晚7点', noteColor2: '#fde68a', textColor2: '#92400e', pinColor2: '#ef4444' },
+      // 套装 2: 节假日通知
+      { title: '🏖️ 放假', content: '五一休5天', noteColor: '#bfdbfe', textColor: '#1e40af', pinColor: '#22c55e',
+        title2: '值班', content2: '轮流来', noteColor2: '#fecaca', textColor2: '#991b1b', pinColor2: '#a855f7' },
+      // 套装 3: 办公区守则
+      { title: '🔇 安静', content: '轻声细语', noteColor: '#e9d5ff', textColor: '#6b21a8', pinColor: '#06b6d4',
+        title2: '🍱 冰箱', content2: '写名字!', noteColor2: '#fed7aa', textColor2: '#9a3412', pinColor2: '#84cc16' },
+      // 套装 4: 技术分享
+      { title: '📚 分享', content: '周三Rust', noteColor: '#cffafe', textColor: '#155e75', pinColor: '#f97316',
+        title2: '报名', content2: '找行政', noteColor2: '#fde68a', textColor2: '#92400e', pinColor2: '#ec4899' },
+      // 套装 5: 健康提醒（根据时间段变化）
+      { title: chinaHour >= 12 && chinaHour < 14 ? '😴 午休' : '💧 喝水',
+        content: chinaHour >= 12 && chinaHour < 14 ? '别吵Zzz' : '每天8杯',
+        noteColor: '#bbf7d0', textColor: '#166534', pinColor: '#3b82f6',
+        title2: chinaDay === 5 ? '🎉 周五' : '💪 运动',
+        content2: chinaDay === 5 ? '快放假!' : '多走动',
+        noteColor2: chinaDay === 5 ? '#fef08a' : '#fecaca',
+        textColor2: chinaDay === 5 ? '#854d0e' : '#991b1b',
+        pinColor2: '#eab308' },
+    ];
+
+    const set = noticeSets[cycleIndex];
+
+    // 便利贴微微晃动动画 — 模拟被风吹的感觉
+    const wobble1 = Math.sin(t * 1.2) * 0.5;
+    const wobble2 = Math.cos(t * 0.9) * 0.5;
+
+    // 📝 便利贴1
+    c.fillStyle = set.noteColor;
+    c.fillRect(x + 4 + wobble1, y + 5, 8, 6);
+    c.fillStyle = set.textColor;
     c.font = '3px monospace';
     c.textAlign = 'left';
-    c.fillText('通知', x + 5, y + 8);
+    c.fillText(set.title, x + 5 + wobble1, y + 8);
     c.font = '2px monospace';
-    c.fillText('下周体检', x + 5, y + 10);
+    c.fillText(set.content, x + 5 + wobble1, y + 10);
     // 图钉
-    c.fillStyle = '#e94560';
+    c.fillStyle = set.pinColor;
     c.beginPath();
     c.arc(x + 8, y + 4, 1.5, 0, Math.PI * 2);
     c.fill();
-    c.fillStyle = '#c0392b';
+    c.fillStyle = 'rgba(0,0,0,0.3)';
     c.beginPath();
     c.arc(x + 8, y + 4, 0.8, 0, Math.PI * 2);
     c.fill();
 
-    // 📝 便利贴2：粉色 — 生日提醒
-    c.fillStyle = '#f9a8d4';
-    c.fillRect(x + 16, y + 5, 8, 6);
-    // 微微旋转效果（用偏移模拟）
-    c.fillStyle = '#9d174d';
+    // 📝 便利贴2
+    c.fillStyle = set.noteColor2;
+    c.fillRect(x + 16 + wobble2, y + 5, 8, 6);
+    c.fillStyle = set.textColor2;
     c.font = '3px monospace';
-    c.fillText('🎂', x + 17, y + 8);
+    c.fillText(set.title2, x + 17 + wobble2, y + 8);
     c.font = '2px monospace';
-    c.fillText('4/15', x + 17, y + 10);
+    c.fillText(set.content2, x + 17 + wobble2, y + 10);
     // 图钉
-    c.fillStyle = '#3b82f6';
+    c.fillStyle = set.pinColor2;
     c.beginPath();
     c.arc(x + 20, y + 4, 1.5, 0, Math.PI * 2);
     c.fill();
+    c.fillStyle = 'rgba(0,0,0,0.3)';
 
     // 📝 便利贴3：绿色 — 外卖拼单
     c.fillStyle = '#86efac';
@@ -1735,6 +3220,174 @@ export class Renderer {
   }
 
   // ============================================
+  // 🏖️ 请假牌 — 工位上放着「请假中」的小牌子
+  // ============================================
+  private drawAbsentSign(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+    // 小牌子底座
+    c.fillStyle = '#8b6914';
+    c.fillRect(x + ts / 2 - 7, y + ts / 2 + 2, 14, 8);
+    c.fillStyle = '#a07820';
+    c.fillRect(x + ts / 2 - 6, y + ts / 2 + 3, 12, 6);
+    // 牌子正面（白色卡片）
+    c.fillStyle = '#f0f0f0';
+    c.fillRect(x + ts / 2 - 5, y + ts / 2 - 8, 10, 12);
+    c.fillStyle = '#fff';
+    c.fillRect(x + ts / 2 - 4, y + ts / 2 - 7, 8, 10);
+    // 红色「请假」文字
+    c.fillStyle = '#e94560';
+    c.font = `bold ${Math.max(5, ts - 16)}px sans-serif`;
+    c.textAlign = 'center';
+    c.fillText('请假', x + ts / 2, y + ts / 2 + 1);
+    // 小图标
+    c.fillStyle = '#94a3b8';
+    c.font = `${Math.max(4, ts - 18)}px sans-serif`;
+    c.fillText('🏖️', x + ts / 2, y + ts / 2 - 2);
+    // 闪烁效果（吸引注意）
+    if (Math.sin(t * 3) > 0.7) {
+      c.fillStyle = 'rgba(255,255,255,0.3)';
+      c.fillRect(x + ts / 2 - 3, y + ts / 2 - 6, 6, 2);
+    }
+  }
+
+  // ============================================
+  // 🍽️ 午餐桌 — 走廊地毯区的实木餐桌，午休时大家围坐吃饭
+  // ============================================
+  private drawLunchTable(x: number, y: number, ts: number, t: number, tx: number, ty: number): void {
+    const c = this.ctx;
+    // 实木桌面 — 暖色木纹
+    c.fillStyle = '#6b4423';
+    c.fillRect(x + 2, y + 4, ts - 4, ts - 8);
+    c.fillStyle = '#7a5530';
+    c.fillRect(x + 3, y + 5, ts - 6, ts - 10);
+    // 木纹纹理
+    c.strokeStyle = 'rgba(139,90,43,0.3)';
+    c.lineWidth = 0.5;
+    for (let i = 0; i < 3; i++) {
+      c.beginPath();
+      c.moveTo(x + 4, y + 8 + i * 5);
+      c.lineTo(x + ts - 4, y + 8 + i * 5);
+      c.stroke();
+    }
+    // 桌腿
+    c.fillStyle = '#5a3a18';
+    c.fillRect(x + 3, y + ts - 6, 3, 4);
+    c.fillRect(x + ts - 6, y + ts - 6, 3, 4);
+
+    // 🪑 四把餐椅 — 围绕桌子，升级版：人体工学餐椅
+    const map = this.tileMap;
+    const isNeighbor = (dx: number, dy: number): boolean => {
+      const nx = tx + dx, ny = ty + dy;
+      return ny >= 0 && ny < map.height && nx >= 0 && nx < map.width && map.tiles[ny][nx] === TileType.LunchTable;
+    };
+    const drawDiningChair = (cx: number, cy: number, facing: 'up' | 'down' | 'left' | 'right') => {
+      // 椅腿 — 四根实木腿
+      c.fillStyle = '#5c3a1e';
+      c.fillRect(cx - 4, cy - 1, 1.5, 5);
+      c.fillRect(cx + 2.5, cy - 1, 1.5, 5);
+      // 椅腿横撑 — 连接腿的横梁
+      c.fillStyle = '#4a2e15';
+      c.fillRect(cx - 4, cy + 1, 8, 1);
+      // 坐垫 — 皮革软垫
+      c.fillStyle = '#c0392b';
+      c.fillRect(cx - 5, cy - 3, 10, 6);
+      c.fillStyle = '#e74c3c';
+      c.fillRect(cx - 4, cy - 2, 8, 4);
+      // 坐垫高光 — 模拟皮革反光
+      c.fillStyle = 'rgba(255,255,255,0.12)';
+      c.fillRect(cx - 3, cy - 1, 3, 1);
+      // 靠背 — 弧形人体工学靠背
+      c.fillStyle = '#5c3a1e';
+      if (facing === 'up') {
+        // 靠背在下方，弧形朝向座位
+        c.fillRect(cx - 5, cy + 3, 10, 3);
+        c.fillStyle = '#6b4423';
+        c.fillRect(cx - 4, cy + 3, 8, 1);
+        // 靠背顶部圆角
+        c.fillStyle = '#7a5530';
+        c.fillRect(cx - 4, cy + 5, 1, 1);
+        c.fillRect(cx + 3, cy + 5, 1, 1);
+      } else if (facing === 'down') {
+        // 靠背在上方
+        c.fillRect(cx - 5, cy - 6, 10, 3);
+        c.fillStyle = '#6b4423';
+        c.fillRect(cx - 4, cy - 6, 8, 1);
+        c.fillStyle = '#7a5530';
+        c.fillRect(cx - 4, cy - 7, 1, 1);
+        c.fillRect(cx + 3, cy - 7, 1, 1);
+      } else if (facing === 'left') {
+        // 靠背在右侧
+        c.fillRect(cx + 4, cy - 4, 3, 8);
+        c.fillStyle = '#6b4423';
+        c.fillRect(cx + 4, cy - 3, 1, 6);
+        c.fillStyle = '#7a5530';
+        c.fillRect(cx + 6, cy - 3, 1, 1);
+        c.fillRect(cx + 6, cy + 2, 1, 1);
+      } else {
+        // 靠背在左侧
+        c.fillRect(cx - 7, cy - 4, 3, 8);
+        c.fillStyle = '#6b4423';
+        c.fillRect(cx - 5, cy - 3, 1, 6);
+        c.fillStyle = '#7a5530';
+        c.fillRect(cx - 7, cy - 3, 1, 1);
+        c.fillRect(cx - 7, cy + 2, 1, 1);
+      }
+    };
+
+    // 四把椅子，靠背朝外
+    if (!isNeighbor(0, -1)) drawDiningChair(x + ts / 2, y + 3, 'up');
+    if (!isNeighbor(0, 1)) drawDiningChair(x + ts / 2, y + ts - 4, 'down');
+    if (!isNeighbor(-1, 0)) drawDiningChair(x + 3, y + ts / 2, 'left');
+    if (!isNeighbor(1, 0)) drawDiningChair(x + ts - 3, y + ts / 2, 'right');
+
+    // 🍱 桌上食物 — 随机午餐盒
+    const lunchBoxes = [
+      { color: '#e74c3c', label: '🍱' },
+      { color: '#f39c12', label: '🥡' },
+      { color: '#2ecc71', label: '🍜' },
+      { color: '#3498db', label: '🥗' },
+    ];
+    const box = lunchBoxes[(tx * 3 + ty * 7) % lunchBoxes.length];
+    // 餐盒
+    c.fillStyle = box.color;
+    c.fillRect(x + ts / 2 - 6, y + ts / 2 - 3, 5, 5);
+    c.fillStyle = 'rgba(255,255,255,0.3)';
+    c.fillRect(x + ts / 2 - 5, y + ts / 2 - 2, 3, 3);
+    // 筷子
+    c.fillStyle = '#8b6914';
+    c.fillRect(x + ts / 2 + 1, y + ts / 2 - 4, 1, 7);
+    c.fillRect(x + ts / 2 + 3, y + ts / 2 - 3, 1, 7);
+    // 饮料杯
+    c.fillStyle = '#e94560';
+    c.fillRect(x + ts / 2 + 5, y + ts / 2 - 2, 4, 5);
+    c.fillStyle = '#f0f0f0';
+    c.fillRect(x + ts / 2 + 5, y + ts / 2 - 3, 4, 2);
+    // 吸管
+    c.fillStyle = '#3498db';
+    c.fillRect(x + ts / 2 + 6, y + ts / 2 - 6, 1, 4);
+
+    // 🌿 桌中间小盆栽
+    c.fillStyle = '#8b6914';
+    c.fillRect(x + ts / 2 - 2, y + ts / 2 + 2, 4, 3);
+    c.fillStyle = '#4aaa3a';
+    const sw = Math.sin(t * 1.5) * 0.5;
+    c.fillRect(x + ts / 2 - 1 + sw, y + ts / 2 - 2, 2, 4);
+    c.fillStyle = '#5abb4a';
+    c.fillRect(x + ts / 2 - 3 + sw, y + ts / 2 - 1, 2, 2);
+    c.fillRect(x + ts / 2 + 1 + sw, y + ts / 2, 2, 2);
+
+    // 热气 — 饭菜冒着热气
+    if (Math.sin(t * 2 + tx) > 0.3) {
+      c.fillStyle = 'rgba(255,255,255,0.15)';
+      for (let i = 0; i < 3; i++) {
+        const sx = x + ts / 2 - 3 + i * 3 + Math.sin(t * 2 + i) * 2;
+        const sy = y + ts / 2 - 6 - i * 2;
+        c.fillRect(sx, sy, 2, 2);
+      }
+    }
+  }
+
+  // ============================================
   // Cat Drawing
   // ============================================
   private drawCat(cat: OfficeCat, ts: number, time: number): void {
@@ -1888,6 +3541,107 @@ export class Renderer {
   }
 
   // ============================================
+  // 🛵 外卖员 — 前台等外卖来拿，戴头盔拎袋子
+  // ============================================
+  private drawDeliveryPerson(dp: { x: number; y: number; timer: number; bags: number }, ts: number, time: number): void {
+    const c = this.ctx;
+    const px = dp.x * ts + ts / 2;
+    const py = dp.y * ts + ts / 2;
+    const s = ts * 0.7;
+    const bob = Math.sin(time * 2) * 1; // 轻微晃动（等得不耐烦）
+
+    // 阴影
+    c.fillStyle = 'rgba(0,0,0,0.25)';
+    c.beginPath();
+    c.ellipse(px, py + s * 0.5, s * 0.35, s * 0.1, 0, 0, Math.PI * 2);
+    c.fill();
+
+    // 腿
+    c.fillStyle = '#2c3e50';
+    c.fillRect(px - s * 0.12, py + s * 0.15, s * 0.1, s * 0.3);
+    c.fillRect(px + s * 0.02, py + s * 0.15, s * 0.1, s * 0.3);
+    // 鞋子
+    c.fillStyle = '#1a1a1a';
+    c.fillRect(px - s * 0.15, py + s * 0.4, s * 0.15, s * 0.06);
+    c.fillRect(px + s * 0.0, py + s * 0.4, s * 0.15, s * 0.06);
+
+    // 身体 — 外卖员制服（黄色）
+    c.fillStyle = '#f39c12';
+    c.fillRect(px - s * 0.22, py - s * 0.15, s * 0.44, s * 0.35);
+    // 制服logo
+    c.fillStyle = '#e74c3c';
+    c.fillRect(px - s * 0.05, py - s * 0.05, s * 0.1, s * 0.08);
+
+    // 手臂
+    c.fillStyle = '#f39c12';
+    const armSwing = Math.sin(time * 3) * 1;
+    c.fillRect(px - s * 0.3, py - s * 0.1 + armSwing, s * 0.1, s * 0.25);
+    c.fillRect(px + s * 0.2, py - s * 0.1 - armSwing, s * 0.1, s * 0.25);
+    // 手
+    c.fillStyle = '#e8c39e';
+    c.fillRect(px - s * 0.3, py + s * 0.12 + armSwing, s * 0.1, s * 0.08);
+    c.fillRect(px + s * 0.2, py + s * 0.12 - armSwing, s * 0.1, s * 0.08);
+
+    // 外卖袋 — 手里拎着的袋子
+    const bagColors = ['#e74c3c', '#3498db', '#2ecc71', '#9b59b6'];
+    for (let i = 0; i < dp.bags; i++) {
+      const bagX = px + s * 0.22 + i * s * 0.12;
+      const bagY = py + s * 0.15 - armSwing + Math.sin(time * 4 + i) * 1;
+      c.fillStyle = bagColors[i % bagColors.length];
+      c.fillRect(bagX, bagY, s * 0.1, s * 0.12);
+      // 袋子提手
+      c.strokeStyle = '#333';
+      c.lineWidth = 0.5;
+      c.beginPath();
+      c.moveTo(bagX + s * 0.02, bagY);
+      c.lineTo(bagX + s * 0.05, bagY - s * 0.05);
+      c.lineTo(bagX + s * 0.08, bagY);
+      c.stroke();
+    }
+
+    // 头
+    c.fillStyle = '#e8c39e';
+    c.fillRect(px - s * 0.16, py - s * 0.45 + bob, s * 0.32, s * 0.3);
+
+    // 头盔 — 外卖员标志性黄色头盔
+    c.fillStyle = '#f1c40f';
+    c.fillRect(px - s * 0.2, py - s * 0.52 + bob, s * 0.4, s * 0.14);
+    c.fillRect(px - s * 0.18, py - s * 0.5 + bob, s * 0.04, s * 0.08);
+    c.fillRect(px + s * 0.14, py - s * 0.5 + bob, s * 0.04, s * 0.08);
+    // 头盔面罩
+    c.fillStyle = 'rgba(52,152,219,0.3)';
+    c.fillRect(px - s * 0.14, py - s * 0.42 + bob, s * 0.28, s * 0.06);
+
+    // 眼睛
+    c.fillStyle = '#1a1a2e';
+    c.fillRect(px - s * 0.08, py - s * 0.32 + bob, s * 0.05, s * 0.05);
+    c.fillRect(px + s * 0.03, py - s * 0.32 + bob, s * 0.05, s * 0.05);
+
+    // 嘴巴 — 等得不耐烦
+    if (dp.timer < 30) {
+      c.fillStyle = '#8b4513';
+      c.fillRect(px - s * 0.05, py - s * 0.18 + bob, s * 0.1, s * 0.03);
+    } else {
+      c.fillStyle = '#8b4513';
+      c.fillRect(px - s * 0.04, py - s * 0.18 + bob, s * 0.08, s * 0.03);
+    }
+
+    // 标签
+    c.fillStyle = '#f39c12';
+    c.font = 'bold 6px monospace';
+    c.textAlign = 'center';
+    c.fillText('🛵 外卖', px, py - s * 0.58 + bob);
+
+    // 等待倒计时
+    if (dp.timer > 40) {
+      const flash = Math.sin(time * 6) > 0 ? 1 : 0.4;
+      c.fillStyle = `rgba(231,76,60,${flash})`;
+      c.font = '5px monospace';
+      c.fillText(`⏱️ ${Math.ceil(60 - dp.timer)}s`, px, py - s * 0.68 + bob);
+    }
+  }
+
+  // ============================================
   // Agent Drawing
   // ============================================
   private drawAgent(a: Agent, ts: number, time: number): void {
@@ -1905,6 +3659,20 @@ export class Renderer {
       ctx.fillText(`${te} ${a.currentTask.title}`, px, py - ts / 2 - 20);
     }
     if (a.speechBubble) this.drawSpeechBubble(px, py - ts / 2 - 12, a.speechBubble);
+    // 🧋 桌上的奶茶杯 — 点过奶茶后桌上会有杯子，持续一段时间
+    if (a.drinkOnDesk && a.drinkOnDeskTimer > 0) {
+      const cupFade = Math.min(1, a.drinkOnDeskTimer / 10); // 最后10秒淡出
+      ctx.globalAlpha = cupFade;
+      ctx.font = '12px sans-serif';
+      ctx.fillText('🧋', px + ts * 0.25, py + ts * 0.15);
+      ctx.globalAlpha = 1;
+    }
+    // ☂️ 雨天拿伞 — 拿过伞的 agent 头顶显示小伞
+    if (a.hasUmbrella) {
+      const umbrellaBob = Math.sin(time * 2) * 1; // 轻微晃动
+      ctx.font = '11px sans-serif';
+      ctx.fillText('☂️', px + ts * 0.3, py - ts / 2 - 8 + umbrellaBob);
+    }
   }
 
   private drawSpeechBubble(x: number, y: number, text: string): void {
@@ -1975,23 +3743,34 @@ export class Renderer {
   // ============================================
   private drawLighting(time: number, atm: AtmosphereState): void {
     const ctx = this.ctx, ts = this.tileSize;
+    // 📊 动态亮度 — 人越少办公室越暗
+    const activityDimmer = 0.4 + this.activityLevel * 0.6; // 0.4 (空办公室) ~ 1.0 (满员)
+    // 🌙 周末安静模式 — 办公室灯光调暗到 30%，营造周末空荡荡的感觉
+    const isWeekend = this.weekendOvertimeDesks.size > 0;
+    const weekendDimmer = isWeekend ? 0.3 : 1.0;
+    const effectiveDimmer = activityDimmer * weekendDimmer;
     // Night overlay
     if (atm.overlayAlpha > 0) {
       ctx.fillStyle = atm.overlayColor;
-      ctx.globalAlpha = atm.overlayAlpha;
+      ctx.globalAlpha = atm.overlayAlpha * (1 + (1 - effectiveDimmer) * 0.3); // 人少时夜间更暗
       ctx.fillRect(0, 0, this.tileMap.width * ts, this.tileMap.height * ts);
       ctx.globalAlpha = 1;
     }
-    // Lamp glows (stronger at night)
-    const lampIntensity = atm.ambientBrightness < 0.5 ? 0.12 : 0.04;
+    // Lamp glows — 亮度根据活跃度调整，周末大幅降低
+    const lampIntensity = (atm.ambientBrightness < 0.5 ? 0.12 : 0.04) * effectiveDimmer;
     for (let y = 0; y < this.tileMap.height; y++) {
       for (let x = 0; x < this.tileMap.width; x++) {
         const t = this.tileMap.tiles[y][x];
         if (t === TileType.Lamp) {
           const cx = x * ts + ts / 2, cy = y * ts + ts, r = ts * 3;
           const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-          g.addColorStop(0, `rgba(255,220,100,${lampIntensity + Math.sin(time * 2 + x) * 0.02})`);
-          g.addColorStop(1, 'rgba(255,220,100,0)');
+          // 人少时灯光更暖更暗，人多时更亮更白
+          const warmth = 1 - this.activityLevel * 0.3; // 人少偏暖色
+          const r2 = Math.floor(255 * warmth);
+          const g2 = Math.floor(220 * warmth);
+          const b2 = Math.floor(100 * (1 - (1 - warmth) * 0.5));
+          g.addColorStop(0, `rgba(${r2},${g2},${b2},${lampIntensity + Math.sin(time * 2 + x) * 0.02})`);
+          g.addColorStop(1, `rgba(${r2},${g2},${b2},0)`);
           ctx.fillStyle = g; ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
         }
       }
@@ -2057,5 +3836,311 @@ export class Renderer {
     // Text
     c.fillStyle = '#fff'; c.font = 'bold 12px monospace'; c.textAlign = 'center';
     c.fillText(evt.message, bw / 2, 19);
+  }
+
+  // ➡️ 地面导向箭头 — 地毯上的方向指示，真实办公室标配
+  private drawFloorArrow(x: number, y: number, ts: number, t: number, tx: number, ty: number): void {
+    const c = this.ctx;
+    // 先画地毯底色（和 Carpet 一致）
+    c.fillStyle = '#2e2e4e';
+    c.fillRect(x, y, ts, ts);
+
+    // 箭头方向根据位置决定
+    // 走廊中部(8,8) → 指向右（茶水间/卫生间方向）
+    // 走廊中部(9,8) → 指向上（办公区方向）
+    // 走廊(8,9) → 指向下（电梯方向）
+    // 走廊(9,9) → 指向左（休息区方向）
+    const arrowDir = (tx + ty * 3) % 4; // 0=右, 1=上, 2=下, 3=左
+
+    const arrowColors = ['#fbbf24', '#34d399', '#60a5fa', '#f472b6'];
+    const arrowLabels = ['🚻 茶水间 →', '⬆️ 办公区', '⬇️ 电梯', '🛋️ 休息区'];
+    const color = arrowColors[arrowDir];
+
+    // 箭头主体 — 黄色/彩色箭头
+    const cx = x + ts / 2;
+    const cy = y + ts / 2;
+
+    c.fillStyle = color;
+    c.strokeStyle = color;
+    c.lineWidth = 2;
+
+    if (arrowDir === 0) {
+      // → 向右箭头
+      c.beginPath();
+      c.moveTo(x + ts * 0.75, cy);
+      c.lineTo(x + ts * 0.45, cy - ts * 0.2);
+      c.lineTo(x + ts * 0.45, cy - ts * 0.08);
+      c.lineTo(x + ts * 0.2, cy - ts * 0.08);
+      c.lineTo(x + ts * 0.2, cy + ts * 0.08);
+      c.lineTo(x + ts * 0.45, cy + ts * 0.08);
+      c.lineTo(x + ts * 0.45, cy + ts * 0.2);
+      c.closePath();
+      c.fill();
+    } else if (arrowDir === 1) {
+      // ↑ 向上箭头
+      c.beginPath();
+      c.moveTo(cx, y + ts * 0.25);
+      c.lineTo(cx - ts * 0.2, y + ts * 0.55);
+      c.lineTo(cx - ts * 0.08, y + ts * 0.55);
+      c.lineTo(cx - ts * 0.08, y + ts * 0.8);
+      c.lineTo(cx + ts * 0.08, y + ts * 0.8);
+      c.lineTo(cx + ts * 0.08, y + ts * 0.55);
+      c.lineTo(cx + ts * 0.2, y + ts * 0.55);
+      c.closePath();
+      c.fill();
+    } else if (arrowDir === 2) {
+      // ↓ 向下箭头
+      c.beginPath();
+      c.moveTo(cx, y + ts * 0.75);
+      c.lineTo(cx - ts * 0.2, y + ts * 0.45);
+      c.lineTo(cx - ts * 0.08, y + ts * 0.45);
+      c.lineTo(cx - ts * 0.08, y + ts * 0.2);
+      c.lineTo(cx + ts * 0.08, y + ts * 0.2);
+      c.lineTo(cx + ts * 0.08, y + ts * 0.45);
+      c.lineTo(cx + ts * 0.2, y + ts * 0.45);
+      c.closePath();
+      c.fill();
+    } else {
+      // ← 向左箭头
+      c.beginPath();
+      c.moveTo(x + ts * 0.25, cy);
+      c.lineTo(x + ts * 0.55, cy - ts * 0.2);
+      c.lineTo(x + ts * 0.55, cy - ts * 0.08);
+      c.lineTo(x + ts * 0.8, cy - ts * 0.08);
+      c.lineTo(x + ts * 0.8, cy + ts * 0.08);
+      c.lineTo(x + ts * 0.55, cy + ts * 0.08);
+      c.lineTo(x + ts * 0.55, cy + ts * 0.2);
+      c.closePath();
+      c.fill();
+    }
+
+    // 箭头方向标签 — 小字说明
+    const label = arrowLabels[arrowDir];
+    c.fillStyle = 'rgba(255,255,255,0.7)';
+    c.font = `${Math.max(5, ts - 22)}px sans-serif`;
+    c.textAlign = 'center';
+    c.fillText(label, cx, y + ts - 2);
+
+    // 微弱呼吸光效 — 让箭头在远处也能看到
+    const glow = Math.sin(t * 2 + tx + ty) * 0.1 + 0.15;
+    c.fillStyle = color + Math.floor(glow * 255).toString(16).padStart(2, '0');
+    c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+  }
+
+  // 📺 休息区壁挂电视 — 挂在墙上的大屏幕，播放动态内容
+  private drawWallTV(x: number, y: number, ts: number, t: number): void {
+    const c = this.ctx;
+
+    // 电视外框 — 黑色窄边框
+    c.fillStyle = '#111';
+    c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+
+    // 屏幕 — 深色背景
+    const screenX = x + 3;
+    const screenY = y + 3;
+    const screenW = ts - 6;
+    const screenH = ts - 6;
+    c.fillStyle = '#0a0a1a';
+    c.fillRect(screenX, screenY, screenW, screenH);
+
+    // 屏幕内容 — 动态切换
+    const contentPhase = Math.floor(t / 6) % 4; // 每 6 秒切换内容
+
+    if (contentPhase === 0) {
+      // 📰 新闻滚动条 — 模拟新闻频道
+      const scrollX = ((t * 15) % (screenW + 40)) - 20;
+      // 蓝色新闻条
+      c.fillStyle = '#1a3a6a';
+      c.fillRect(screenX, screenY + screenH * 0.3, screenW, screenH * 0.35);
+      // 红色 breaking news
+      c.fillStyle = '#c0392b';
+      c.fillRect(screenX, screenY + screenH * 0.3, screenW * 0.25, screenH * 0.12);
+      c.fillStyle = '#fff';
+      c.font = `bold ${Math.max(4, screenH * 0.12)}px monospace`;
+      c.textAlign = 'left';
+      c.fillText('BREAKING', screenX + 2, screenY + screenH * 0.42);
+      // 滚动文字
+      c.fillStyle = '#e0e0e0';
+      c.font = `${Math.max(4, screenH * 0.15)}px sans-serif`;
+      c.fillText('今日项目进度正常 周末不加班', screenX + scrollX - screenW, screenY + screenH * 0.55);
+      // 底部时间条
+      c.fillStyle = '#0a1a3a';
+      c.fillRect(screenX, screenY + screenH * 0.75, screenW, screenH * 0.25);
+      c.fillStyle = '#60a5fa';
+      c.font = `${Math.max(3, screenH * 0.12)}px monospace`;
+      c.textAlign = 'right';
+      c.fillText(new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }), screenX + screenW - 2, screenY + screenH * 0.9);
+    } else if (contentPhase === 1) {
+      // 🌤️ 天气频道
+      const grad = c.createLinearGradient(screenX, screenY, screenX, screenY + screenH);
+      grad.addColorStop(0, '#1a3a5a');
+      grad.addColorStop(0.5, '#2a6a8a');
+      grad.addColorStop(1, '#4a8aaa');
+      c.fillStyle = grad;
+      c.fillRect(screenX, screenY, screenW, screenH);
+      // 太阳
+      c.fillStyle = '#fbbf24';
+      c.beginPath();
+      c.arc(screenX + screenW * 0.7, screenY + screenH * 0.3, screenH * 0.15, 0, Math.PI * 2);
+      c.fill();
+      // 云朵
+      c.fillStyle = 'rgba(255,255,255,0.8)';
+      const cloudX = screenX + screenW * 0.3 + Math.sin(t * 0.3) * 3;
+      c.beginPath();
+      c.arc(cloudX, screenY + screenH * 0.25, screenH * 0.1, 0, Math.PI * 2);
+      c.arc(cloudX + screenH * 0.1, screenY + screenH * 0.2, screenH * 0.12, 0, Math.PI * 2);
+      c.arc(cloudX + screenH * 0.2, screenY + screenH * 0.25, screenH * 0.08, 0, Math.PI * 2);
+      c.fill();
+      // 温度
+      c.fillStyle = '#fff';
+      c.font = `bold ${Math.max(6, screenH * 0.3)}px monospace`;
+      c.textAlign = 'center';
+      c.fillText('24°C', screenX + screenW / 2, screenY + screenH * 0.7);
+      c.font = `${Math.max(3, screenH * 0.12)}px sans-serif`;
+      c.fillText('☀️ 晴 适宜办公', screenX + screenW / 2, screenY + screenH * 0.85);
+    } else if (contentPhase === 2) {
+      // 📊 公司数据看板
+      c.fillStyle = '#0a1a0a';
+      c.fillRect(screenX, screenY, screenW, screenH);
+      // 绿色边框
+      c.strokeStyle = '#4ade80';
+      c.lineWidth = 1;
+      c.strokeRect(screenX + 1, screenY + 1, screenW - 2, screenH - 2);
+      // 标题
+      c.fillStyle = '#4ade80';
+      c.font = `bold ${Math.max(4, screenH * 0.14)}px monospace`;
+      c.textAlign = 'center';
+      c.fillText('DASHBOARD', screenX + screenW / 2, screenY + screenH * 0.18);
+      // 进度条
+      const bars = [
+        { label: 'Sprint', val: 0.72, color: '#4ade80' },
+        { label: 'Bug', val: 0.35, color: '#f472b6' },
+        { label: 'Coffee', val: 0.95, color: '#fbbf24' },
+      ];
+      bars.forEach((bar, i) => {
+        const by = screenY + screenH * (0.3 + i * 0.22);
+        const bh = screenH * 0.12;
+        c.fillStyle = 'rgba(255,255,255,0.1)';
+        c.fillRect(screenX + screenW * 0.1, by, screenW * 0.8, bh);
+        c.fillStyle = bar.color;
+        c.fillRect(screenX + screenW * 0.1, by, screenW * 0.8 * bar.val, bh);
+        c.fillStyle = '#ccc';
+        c.font = `${Math.max(3, screenH * 0.1)}px monospace`;
+        c.textAlign = 'left';
+        c.fillText(`${bar.label} ${Math.floor(bar.val * 100)}%`, screenX + screenW * 0.1, by - 1);
+      });
+    } else {
+      // 🎨 屏保模式 — 彩色浮动方块（经典屏保）
+      const colors = ['#e94560', '#4ade80', '#60a5fa', '#fbbf24', '#a78bfa', '#f472b6'];
+      for (let i = 0; i < 5; i++) {
+        const bx = screenX + ((t * 8 + i * 17) % screenW);
+        const by = screenY + ((t * 6 + i * 23) % screenH);
+        const size = screenH * 0.15;
+        c.fillStyle = colors[i] + '88';
+        c.fillRect(bx, by, size, size);
+        c.strokeStyle = colors[i];
+        c.lineWidth = 1;
+        c.strokeRect(bx, by, size, size);
+      }
+      // 底部提示
+      c.fillStyle = 'rgba(255,255,255,0.3)';
+      c.font = `${Math.max(3, screenH * 0.1)}px monospace`;
+      c.textAlign = 'center';
+      c.fillText('摸鱼中...别告诉老板', screenX + screenW / 2, screenY + screenH - 2);
+    }
+
+    // 屏幕反光 — 右上角微弱高光
+    const glare = c.createRadialGradient(
+      screenX + screenW * 0.8, screenY + screenH * 0.1, 0,
+      screenX + screenW * 0.8, screenY + screenH * 0.1, screenW * 0.4
+    );
+    glare.addColorStop(0, 'rgba(255,255,255,0.08)');
+    glare.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = glare;
+    c.fillRect(screenX, screenY, screenW, screenH);
+
+    // 电视底部支架
+    c.fillStyle = '#222';
+    c.fillRect(x + ts / 2 - 3, y + ts - 3, 6, 2);
+    c.fillRect(x + ts / 2 - 6, y + ts - 1, 12, 1);
+
+    // 电源指示灯
+    const ledColor = Math.sin(t * 3) > 0 ? '#4ade80' : '#166534';
+    c.fillStyle = ledColor;
+    c.fillRect(x + ts - 5, y + ts - 3, 2, 2);
+  }
+
+  // ============================================
+  // 📊 KPI/OKR 看板 — 挂在隔墙上的绩效考核板，打工人看了就心累
+  // ============================================
+  private drawKPIBoard(x: number, y: number, ts: number, t: number, tileX: number, tileY: number): void {
+    const c = this.ctx;
+
+    // 看板边框
+    c.fillStyle = '#1a1a2e';
+    c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+
+    // 金属边框
+    c.strokeStyle = '#4a4a6e';
+    c.lineWidth = 1;
+    c.strokeRect(x + 1, y + 1, ts - 2, ts - 2);
+
+    // 标题 — "Q1 OKR"
+    c.fillStyle = '#e94560';
+    c.fillRect(x + 2, y + 2, ts - 4, 3);
+
+    c.fillStyle = '#fff';
+    c.font = `bold ${Math.max(5, ts - 16)}px monospace`;
+    c.textAlign = 'center';
+    c.fillText('OKR', x + ts / 2, y + 7);
+
+    // KPI 项目 — 动态进度条
+    const items = [
+      { label: '营收', val: 72, color: '#4ade80' },
+      { label: '用户', val: 65, color: '#60a5fa' },
+      { label: 'Bug数', val: 38, color: '#f87171' },
+      { label: '加班', val: 95, color: '#fbbf24' },
+    ];
+
+    const barWidth = ts - 8;
+    for (let i = 0; i < items.length; i++) {
+      const iy = y + 10 + i * (ts < 30 ? 4 : 5);
+      const barH = ts < 30 ? 2 : 3;
+
+      // 标签
+      c.fillStyle = '#94a3b8';
+      c.font = `${Math.max(3, ts - 22)}px monospace`;
+      c.textAlign = 'left';
+      c.fillText(items[i].label, x + 2, iy + 3);
+
+      // 进度条底色
+      c.fillStyle = '#2a2a4a';
+      c.fillRect(x + 18, iy + 1, barWidth - 16, barH);
+
+      // 进度条填充 — 微动画
+      const pulse = 1 + Math.sin(t * 2 + i * 0.5) * 0.03;
+      c.fillStyle = items[i].color;
+      c.fillRect(x + 18, iy + 1, (barWidth - 20) * (items[i].val / 100) * pulse, barH);
+
+      // 百分比
+      c.fillStyle = items[i].color;
+      c.font = `${Math.max(3, ts - 22)}px monospace`;
+      c.textAlign = 'right';
+      c.fillText(`${items[i].val}%`, x + ts - 2, iy + 3);
+    }
+
+    // 底部滚动消息
+    const scrollX = ((t * 8) % (ts + 10)) - 10;
+    c.fillStyle = '#0a0a1e';
+    c.fillRect(x + 1, y + ts - 5, ts - 2, 4);
+    c.fillStyle = '#fbbf24';
+    c.font = `${Math.max(3, ts - 22)}px sans-serif`;
+    c.textAlign = 'left';
+    c.fillText('🏆 优秀员工: 老王 | 加班时长: 第一名', x + scrollX, y + ts - 2);
+
+    // 运行指示灯
+    const blink = Math.sin(t * 3) > 0;
+    c.fillStyle = blink ? '#4ade80' : '#166534';
+    c.fillRect(x + ts - 4, y + 3, 2, 2);
   }
 }

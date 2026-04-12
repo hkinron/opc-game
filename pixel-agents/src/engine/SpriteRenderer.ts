@@ -199,6 +199,229 @@ export class SpriteRenderer {
       ctx.font = '4px monospace';
       ctx.fillText('z', px + 10 * p, oy + 4 * p + zzOff * 0.5);
     }
+
+    // 🙆 伸懒腰 — 下午犯困经典动作，站起来双臂高举
+    if (state === 'stretching') {
+      const stretchPhase = Math.sin(time * 3); // -1 to 1, 伸-缩循环
+      const stretchAmount = Math.max(0, stretchPhase); // 0 to 1
+
+      // 身体挺直（比正常站姿略高）
+      pxl(4, 7, body, 8, 7);
+      // 衬衫细节
+      pxl(7, 8, shadeColor(body, 20), 2, 4);
+
+      // 双臂高举过头 — 伸懒腰标志动作
+      const armRaise = stretchAmount * 4; // 0-4 像素的抬起量
+      // 左臂
+      pxl(1, 5 - armRaise, body, 2, 5);
+      // 左手
+      pxl(1, 4 - armRaise, '#e8c39e', 2, 2);
+      // 右臂
+      pxl(13, 5 - armRaise, body, 2, 5);
+      // 右手
+      pxl(13, 4 - armRaise, '#e8c39e', 2, 2);
+
+      // 腿 — 伸直（比正常站姿长一点）
+      pxl(5, 13, legs, 2, 5);
+      pxl(9, 13, legs, 2, 5);
+      pxl(4, 17, '#1e293b', 3, 1);
+      pxl(9, 17, '#1e293b', 3, 1);
+
+      // 头部 — 微微后仰
+      pxl(5, 1, '#e8c39e', 6, 7);
+      pxl(5, 0, hairColor, 6, 2);
+      // 头发
+      if (role === AgentRole.Designer) {
+        pxl(4, 1, hairColor, 1, 6);
+        pxl(11, 1, hairColor, 1, 6);
+      } else {
+        pxl(5, 0, hairColor, 6, 2);
+      }
+      // 眼睛 — 眯着（享受伸懒腰的感觉）
+      pxl(6, 3, '#1e293b', 2, 1);
+      pxl(9, 3, '#1e293b', 2, 1);
+      // 嘴巴 — 打哈欠（张开）
+      if (stretchAmount > 0.5) {
+        pxl(7, 6, '#8b0000', 2, 2); // 张开的嘴
+        pxl(7, 7, '#c2410c', 2, 1); // 舌头
+      } else {
+        pxl(7, 7, '#c2410c', 2, 1);
+      }
+
+      // 💨 伸懒腰特效 — 身体周围的能量波动
+      if (stretchAmount > 0.3) {
+        const glowAlpha = stretchAmount * 0.15;
+        ctx.fillStyle = `rgba(255,255,200,${glowAlpha})`;
+        ctx.beginPath();
+        ctx.ellipse(px, py - 2 * p, 10 * p, 14 * p, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // ✨ 伸懒腰完成时的小星星
+      if (stretchAmount > 0.8) {
+        ctx.fillStyle = 'rgba(255,215,0,0.6)';
+        ctx.font = '6px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('✨', px + 10 * p, oy);
+      }
+
+      // 重新画角色配件（glasses, etc.）
+      this.drawAccessory(ctx, px, py, role, accessory, p, ox, oy, animFrame, time, state);
+    }
+
+    // 🥱 打哈欠 — 下午犯困灵魂出窍，嘴巴张大大的
+    if (state === 'yawning') {
+      const yawnPhase = Math.sin(time * 2); // 张嘴→闭嘴循环
+      const mouthOpen = Math.max(0, yawnPhase); // 0 to 1
+
+      // 身体 — 稍微佝偻（困了的姿态）
+      pxl(4, 9, body, 8, 6);
+      pxl(7, 10, shadeColor(body, 20), 2, 3);
+
+      // 手臂 — 一只手捂嘴
+      pxl(2, 10, body, 2, 4);
+      pxl(12, 10, body, 2, 4);
+      // 捂嘴的手
+      pxl(6, 6 - mouthOpen, '#e8c39e', 4, 2);
+
+      // 腿
+      pxl(5, 14, legs, 2, 4);
+      pxl(9, 14, legs, 2, 4);
+      pxl(4, 17, '#1e293b', 3, 1);
+      pxl(9, 17, '#1e293b', 3, 1);
+
+      // 头部 — 微微仰起
+      pxl(5, 2, '#e8c39e', 6, 6);
+      pxl(5, 1, hairColor, 6, 2);
+      if (role === AgentRole.Designer) {
+        pxl(4, 2, hairColor, 1, 5);
+        pxl(11, 2, hairColor, 1, 5);
+      }
+
+      // 眼睛 — 困得眯成一条缝
+      pxl(6, 4, '#1e293b', 2, 1);
+      pxl(9, 4, '#1e293b', 2, 1);
+
+      // 嘴巴 — 张得大大的打哈欠
+      if (mouthOpen > 0.3) {
+        const mouthH = 1 + Math.floor(mouthOpen * 2);
+        pxl(7, 6, '#8b0000', 2, mouthH); // 口腔内部
+        if (mouthOpen > 0.6) {
+          pxl(7, 6 + mouthH - 1, '#c2410c', 2, 1); // 舌头
+        }
+        // 打哈欠挤出的眼泪
+        if (mouthOpen > 0.7) {
+          ctx.fillStyle = 'rgba(100,180,255,0.6)';
+          ctx.fillRect(px - 4 * p, oy + 5 * p, p, p);
+          ctx.fillRect(px + 4 * p, oy + 5 * p, p, p);
+        }
+      } else {
+        pxl(7, 7, '#c2410c', 2, 1);
+      }
+
+      // 💨 打哈欠呼气效果
+      if (mouthOpen > 0.5) {
+        const breathAlpha = mouthOpen * 0.15;
+        ctx.fillStyle = `rgba(200,220,255,${breathAlpha})`;
+        ctx.beginPath();
+        ctx.ellipse(px + 5 * p, oy + 6 * p, 4 * p, 2 * p, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 😴 Zzz 粒子 — 头顶飘
+      const zzY = oy - 3 * p + Math.sin(time * 1.5) * 2;
+      ctx.fillStyle = `rgba(148,163,184,${0.3 + mouthOpen * 0.4})`;
+      ctx.font = '6px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('😴', px + 9 * p, zzY);
+      ctx.font = '4px monospace';
+      ctx.fillText('z', px + 12 * p, zzY + 2);
+
+      // 重新画角色配件
+      this.drawAccessory(ctx, px, py, role, accessory, p, ox, oy, animFrame, time, state);
+    }
+
+    // 🥱 打哈欠 — 下午犯困灵魂动作，嘴巴张得大大的
+    if (state === 'yawning') {
+      const yawnPhase = Math.sin(time * 2.5); // -1 to 1, 打哈欠的张嘴-闭嘴循环
+      const mouthOpen = Math.max(0, yawnPhase); // 0 to 1, 嘴巴张开程度
+      const eyeSquint = Math.max(0, yawnPhase * 0.7); // 眼睛眯起程度
+
+      // 身体 — 稍微佝偻（困了的姿势）
+      pxl(4, 9, body, 8, 6);
+      // 衬衫细节
+      pxl(7, 10, shadeColor(body, 20), 2, 3);
+
+      // 手臂 — 一只手捂嘴打哈欠
+      pxl(2, 10, body, 2, 5);
+      pxl(12, 10, body, 2, 5);
+      // 捂嘴的手
+      const handY = 7 - mouthOpen * 2;
+      pxl(6, handY, '#e8c39e', 4, 2);
+
+      // 腿 — 站直但懒散
+      pxl(5, 14, legs, 2, 4);
+      pxl(9, 14, legs, 2, 4);
+      pxl(4, 17, '#1e293b', 3, 1);
+      pxl(9, 17, '#1e293b', 3, 1);
+
+      // 头部 — 微微后仰
+      pxl(5, 2, '#e8c39e', 6, 7);
+      pxl(5, 1, hairColor, 6, 2);
+      if (role === AgentRole.Designer) {
+        pxl(4, 2, hairColor, 1, 6);
+        pxl(11, 2, hairColor, 1, 6);
+      }
+
+      // 眼睛 — 半闭半开（困得睁不开）
+      const eyeH = Math.max(1, 2 - Math.floor(eyeSquint * 2));
+      pxl(6, 4, '#1e293b', 2, eyeH);
+      pxl(9, 4, '#1e293b', 2, eyeH);
+
+      // 嘴巴 — 张得大大的打哈欠
+      if (mouthOpen > 0.3) {
+        const mouthH = 1 + Math.floor(mouthOpen * 3);
+        pxl(7, 7, '#8b0000', 2, mouthH); // 口腔
+        if (mouthOpen > 0.6) {
+          pxl(7, 7 + mouthH - 1, '#c2410c', 2, 1); // 舌头
+        }
+        // 眼泪 — 打哈欠打出的眼泪
+        if (mouthOpen > 0.7) {
+          ctx.fillStyle = 'rgba(100,180,255,0.5)';
+          const tearY = oy + (5 + Math.sin(time * 4) * 1) * p;
+          ctx.fillRect(px - 3 * p, tearY, p, p);
+          ctx.fillRect(px + 3 * p, tearY + p, p, p);
+        }
+      } else {
+        pxl(7, 7, '#c2410c', 2, 1);
+      }
+
+      // 💨 哈欠的"气" — 从嘴里呼出的气
+      if (mouthOpen > 0.5) {
+        const breathAlpha = mouthOpen * 0.12;
+        ctx.fillStyle = `rgba(200,220,255,${breathAlpha})`;
+        ctx.beginPath();
+        ctx.ellipse(px + 4 * p, oy + 7 * p, 4 * p, 3 * p, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(px - 4 * p, oy + 7 * p, 3 * p, 2 * p, -0.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 😴 Zzz 符号 — 打哈欠专属
+      const zzAlpha = 0.3 + mouthOpen * 0.4;
+      const zzY = oy - 2 * p + Math.sin(time * 1.5) * 2;
+      ctx.fillStyle = `rgba(148,163,184,${zzAlpha})`;
+      ctx.font = '5px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('😴', px + 8 * p, zzY);
+      ctx.font = '3px monospace';
+      ctx.fillText('z', px + 11 * p, zzY + 3);
+      ctx.fillText('z', px + 12 * p, zzY + 1);
+
+      // 重新画角色配件
+      this.drawAccessory(ctx, px, py, role, accessory, p, ox, oy, animFrame, time, state);
+    }
   }
 
   private static drawAccessory(
