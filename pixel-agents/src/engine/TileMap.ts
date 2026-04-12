@@ -70,6 +70,8 @@ export const TILE_CONFIG: Record<TileType, TileConfig> = {
   [TileType.PrinterJam]: { name: 'PrinterJam', color: '#8b3a3a', borderColor: '#ff4444', walkable: false },
   // 🚪 会议室玻璃门 — 可通行，有门把手和PUSH标识
   [TileType.MeetingDoor]: { name: 'MeetingDoor', color: '#2a4a6a', borderColor: '#fbbf24', walkable: true },
+  // 🎮 复古游戏机 — 休息区摸鱼圣地
+  [TileType.GameConsole]: { name: 'GameConsole', color: '#1a1a2e', borderColor: '#e94560', walkable: false },
 };
 
 export const KANBAN_BOARD = { x: 4, y: 1, width: 4 };
@@ -105,6 +107,7 @@ const FURNITURE_MAP: Record<string, TileType> = {
   printerjam: TileType.PrinterJam,
   meetingwhiteboard: TileType.MeetingWhiteboard,
   meetingdoor: TileType.MeetingDoor,
+  gameconsole: TileType.GameConsole,
 };
 
 export class TileMap {

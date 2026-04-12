@@ -51,6 +51,10 @@ export class Renderer {
   private typingDesks: Set<string> = new Set(); // 💻 正在打字的工位 "x,y"
   private idleDesks: Set<string> = new Set(); // 🖥️ 无人使用的工位 — 显示器关闭/待机状态
   private weekendOvertimeDesks: Set<string> = new Set(); // 🌙 周末加班工位 — 非加班工位显示器关闭，办公室灯光调暗
+  // 🛗 电梯状态可视化
+  private elevatorDoorOpen = false; // 电梯门是否打开
+  private elevatorOverload = false; // 电梯是否超载报警
+  private elevatorOverloadAgent: string | null = null; // 被挤出电梯的人
 
   constructor(canvas: HTMLCanvasElement, tileMap: TileMap, theme?: ThemeColors) {
     this.ctx = canvas.getContext('2d')!;
@@ -100,6 +104,12 @@ export class Renderer {
   // ☕ 咖啡机排队状态
   setCoffeeQueueState(busy: boolean, queueLen: number): void { this.coffeeMachineBusy = busy; this.coffeeQueueLength = queueLen; }
   setMicrowaveQueueState(busy: boolean, queueLen: number): void { this.microwaveBusy = busy; this.microwaveQueueLength = queueLen; }
+  // 🛗 电梯状态
+  setElevatorState(doorOpen: boolean, overload: boolean, overloadAgent: string | null): void {
+    this.elevatorDoorOpen = doorOpen;
+    this.elevatorOverload = overload;
+    this.elevatorOverloadAgent = overloadAgent;
+  }
 
   triggerEvent(msg: string, duration: number = 15): void {
     const colors = ['#e74c3c', '#f39c12', '#2ecc71', '#3498db', '#9b59b6', '#e67e22'];
@@ -196,6 +206,7 @@ export class Renderer {
         else if (type === TileType.PingPong) this.drawPingPong(px, py, ts, time);
         else if (type === TileType.BirthdayCake) this.drawBirthdayCake(px, py, ts, time);
         else if (type === TileType.WelcomeMat) this.drawWelcomeMat(px, py, ts, time);
+        else if (type === TileType.GameConsole) this.drawGameConsole(px, py, ts, time, x, y);
         else if (type === TileType.MeetingGlass) this.drawMeetingGlass(px, py, ts, time, x, y);
         else if (type === TileType.MeetingDoor) this.drawMeetingDoor(px, py, ts, time, x, y);
         else if (type === TileType.MeetingWhiteboard) this.drawMeetingWhiteboard(px, py, ts, time);
@@ -1060,6 +1071,193 @@ export class Renderer {
     c.beginPath();
     c.arc(ballX, y + ts / 2 - ballBounce - 1, 1, 0, Math.PI * 2);
     c.fill();
+  }
+
+  // ============================================
+  // 🎮 复古游戏机 — 休息区的 CRT 显示器 + 游戏手柄 + 闪烁屏幕
+  // ============================================
+  private drawGameConsole(x: number, y: number, ts: number, t: number, _tx: number, _ty: number): void {
+    const c = this.ctx;
+
+    // 📺 CRT 显示器机身 — 米白色复古外壳，像90年代街机厅的机器
+    c.fillStyle = '#d8d0c0';
+    c.fillRect(x + 3, y + 3, ts - 6, ts - 8);
+    c.fillStyle = '#e8e0d0';
+    c.fillRect(x + 4, y + 4, ts - 8, ts - 10);
+
+    // 屏幕边框 — 深灰色
+    c.fillStyle = '#1a1a2e';
+    c.fillRect(x + 6, y + 6, ts - 12, ts - 16);
+
+    // 🎮 屏幕内容 — 复古像素游戏画面，不断闪烁变化
+    // 模拟经典太空入侵者游戏
+    const gamePhase = Math.floor(t * 0.5) % 4; // 每2秒切换一个游戏画面
+
+    if (gamePhase === 0) {
+      // 画面1: 太空入侵者 — 像素外星人
+      c.fillStyle = '#00ff00';
+      // 外星人（像素风格）
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 4; col++) {
+          const ax = x + 8 + col * 5;
+          const ay = y + 7 + row * 3;
+          c.fillRect(ax, ay, 3, 2);
+          // 外星人眼睛
+          c.fillStyle = '#000';
+          c.fillRect(ax + 1, ay, 1, 1);
+          c.fillStyle = '#00ff00';
+        }
+      }
+      // 玩家飞船
+      c.fillStyle = '#00aaff';
+      c.fillRect(x + ts / 2 - 3, y + ts - 14, 6, 3);
+      c.fillRect(x + ts / 2 - 1, y + ts - 15, 2, 1);
+      // 子弹
+      if (Math.sin(t * 6) > 0) {
+        c.fillStyle = '#ffff00';
+        c.fillRect(x + ts / 2, y + ts - 18 - (Math.floor(t * 3) % 6), 1, 2);
+      }
+    } else if (gamePhase === 1) {
+      // 画面2: 贪吃蛇 — 经典绿色蛇身
+      c.fillStyle = '#00cc00';
+      const snakeSegs = [
+        { sx: 0, sy: 0 }, { sx: 1, sy: 0 }, { sx: 2, sy: 0 },
+        { sx: 2, sy: 1 }, { sx: 2, sy: 2 }, { sx: 1, sy: 2 },
+        { sx: 0, sy: 2 }, { sx: 0, sy: 1 },
+      ];
+      for (const seg of snakeSegs) {
+        c.fillRect(x + 8 + seg.sx * 4, y + 7 + seg.sy * 3, 3, 2);
+      }
+      // 食物
+      c.fillStyle = '#ff0000';
+      c.fillRect(x + 16, y + 13, 2, 2);
+      // 分数
+      c.fillStyle = '#00ff00';
+      c.font = '4px monospace';
+      c.textAlign = 'left';
+      c.fillText('999', x + 7, y + ts - 9);
+    } else if (gamePhase === 2) {
+      // 画面3: 打砖块 — 彩色砖块 + 弹球
+      const brickColors = ['#ff0000', '#ff8800', '#ffff00', '#00ff00', '#0088ff'];
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 4; col++) {
+          if (!((row === 2 && col === 3))) { // 缺一块表示被打掉
+            c.fillStyle = brickColors[row];
+            c.fillRect(x + 8 + col * 4, y + 7 + row * 2, 3, 2);
+          }
+        }
+      }
+      // 挡板
+      c.fillStyle = '#ffffff';
+      c.fillRect(x + ts / 2 - 4, y + ts - 13, 8, 2);
+      // 弹球
+      const ballX2 = x + ts / 2 + Math.sin(t * 4) * 6;
+      const ballY2 = y + ts - 16 - Math.abs(Math.sin(t * 3)) * 5;
+      c.fillStyle = '#ffffff';
+      c.fillRect(ballX2, ballY2, 2, 2);
+    } else {
+      // 画面4: GAME OVER 闪烁
+      const blink = Math.sin(t * 8) > 0;
+      if (blink) {
+        c.fillStyle = '#ff0000';
+        c.font = 'bold 6px monospace';
+        c.textAlign = 'center';
+        c.fillText('GAME', x + ts / 2, y + ts / 2 - 1);
+        c.fillText('OVER', x + ts / 2, y + ts / 2 + 5);
+      } else {
+        c.fillStyle = '#00ff00';
+        c.font = 'bold 5px monospace';
+        c.textAlign = 'center';
+        c.fillText('INSERT', x + ts / 2, y + ts / 2 - 1);
+        c.fillText('COIN', x + ts / 2, y + ts / 2 + 5);
+      }
+    }
+
+    // 屏幕反光 — CRT 玻璃的弧形高光
+    c.fillStyle = 'rgba(255,255,255,0.08)';
+    c.beginPath();
+    c.ellipse(x + ts / 2 - 2, y + ts / 3, ts / 5, ts / 6, -0.3, 0, Math.PI * 2);
+    c.fill();
+
+    // 🎮 手柄 — 放在显示器前面，两个复古手柄
+    // 左手柄
+    c.fillStyle = '#222';
+    c.fillRect(x + 6, y + ts - 7, 8, 4);
+    c.fillStyle = '#333';
+    c.fillRect(x + 7, y + ts - 6, 6, 2);
+    // 十字方向键
+    c.fillStyle = '#555';
+    c.fillRect(x + 8, y + ts - 6, 1, 2);
+    c.fillRect(x + 7, y + ts - 5, 3, 1);
+    // AB按钮
+    c.fillStyle = '#e94560';
+    c.fillRect(x + 11, y + ts - 6, 2, 1);
+    c.fillStyle = '#3498db';
+    c.fillRect(x + 11, y + ts - 5, 2, 1);
+    // 手柄线
+    c.strokeStyle = '#333';
+    c.lineWidth = 0.5;
+    c.beginPath();
+    c.moveTo(x + 10, y + ts - 7);
+    c.quadraticCurveTo(x + 10, y + ts - 9, x + ts / 2, y + ts - 10);
+    c.stroke();
+
+    // 右手柄（简化，放在右边）
+    c.fillStyle = '#222';
+    c.fillRect(x + ts - 14, y + ts - 7, 8, 4);
+    c.fillStyle = '#333';
+    c.fillRect(x + ts - 13, y + ts - 6, 6, 2);
+    c.fillStyle = '#e94560';
+    c.fillRect(x + ts - 11, y + ts - 6, 2, 1);
+    c.fillStyle = '#3498db';
+    c.fillRect(x + ts - 11, y + ts - 5, 2, 1);
+    // 手柄线
+    c.strokeStyle = '#333';
+    c.lineWidth = 0.5;
+    c.beginPath();
+    c.moveTo(x + ts - 10, y + ts - 7);
+    c.quadraticCurveTo(x + ts - 10, y + ts - 9, x + ts / 2, y + ts - 10);
+    c.stroke();
+
+    // 投币口 — 街机风格，闪烁的"INSERT COIN"灯
+    const coinBlink = Math.sin(t * 3) > 0;
+    c.fillStyle = coinBlink ? '#fbbf24' : '#886600';
+    c.fillRect(x + ts / 2 - 3, y + ts - 3, 6, 2);
+    c.fillStyle = '#333';
+    c.fillRect(x + ts / 2 - 1, y + ts - 3, 2, 2);
+
+    // 散热孔 — 机器侧面
+    c.fillStyle = '#aaa';
+    for (let i = 0; i < 3; i++) {
+      c.fillRect(x + 2, y + 8 + i * 4, 2, 1);
+      c.fillRect(x + ts - 4, y + 8 + i * 4, 2, 1);
+    }
+
+    // 🌟 屏幕发光效果 — CRT 显示器的蓝色光晕，模拟真实CRT的电子枪发光
+    const screenGlow = 0.15 + Math.sin(t * 2) * 0.05;
+    const glowGrad = c.createRadialGradient(
+      x + ts / 2, y + ts / 2, 0,
+      x + ts / 2, y + ts / 2, ts * 0.8
+    );
+    glowGrad.addColorStop(0, `rgba(0,255,136,${screenGlow.toFixed(2)})`);
+    glowGrad.addColorStop(0.5, `rgba(0,170,255,${(screenGlow * 0.3).toFixed(2)})`);
+    glowGrad.addColorStop(1, 'rgba(0,100,200,0)');
+    c.fillStyle = glowGrad;
+    c.fillRect(x - ts / 4, y - ts / 4, ts * 1.5, ts * 1.5);
+
+    // CRT 扫描线效果 — 细水平线模拟 CRT 显示器的扫描线
+    c.fillStyle = 'rgba(0,0,0,0.15)';
+    for (let line = 0; line < ts - 16; line += 2) {
+      c.fillRect(x + 6, y + 6 + line, ts - 12, 1);
+    }
+
+    // 🕹️ 游戏机标签 — "ARCADE" 贴纸
+    c.fillStyle = '#e94560';
+    c.fillRect(x + ts / 2 - 8, y + 1, 16, 3);
+    c.fillStyle = '#fff';
+    c.font = `bold ${Math.max(5, ts - 20)}px monospace`;
+    c.textAlign = 'center';
+    c.fillText('ARCADE', x + ts / 2, y + 3);
   }
 
   // ============================================
@@ -2601,17 +2799,51 @@ export class Renderer {
     // 电梯门框
     c.fillStyle = '#4a4a5e'; c.fillRect(x + 2, y + 2, ts - 4, ts - 4);
     c.fillStyle = '#5a5a6e'; c.fillRect(x + 3, y + 3, ts - 6, ts - 6);
-    // 电梯门 — 双开
-    c.fillStyle = '#7a7a8e';
-    c.fillRect(x + 4, y + 4, ts / 2 - 5, ts - 8);
-    c.fillRect(x + ts / 2 + 1, y + 4, ts / 2 - 5, ts - 8);
-    // 门缝
-    c.fillStyle = '#3a3a4e'; c.fillRect(x + ts / 2 - 1, y + 3, 2, ts - 6);
+
+    // 🚪 电梯门动画 — 门打开时两扇门向两侧滑动
+    if (this.elevatorDoorOpen) {
+      const doorOpenAmount = 0.8; // 门打开程度
+      const doorWidth = (ts / 2 - 5) * (1 - doorOpenAmount);
+      // 左门
+      c.fillStyle = '#7a7a8e';
+      c.fillRect(x + 4, y + 4, doorWidth, ts - 8);
+      // 右门
+      c.fillRect(x + ts - 4 - doorWidth, y + 4, doorWidth, ts - 8);
+      // 电梯内部（门打开后看到的空间）
+      c.fillStyle = '#3a3a4e';
+      c.fillRect(x + 4 + doorWidth, y + 4, ts - 8 - doorWidth * 2, ts - 8);
+      // 电梯内部灯光
+      c.fillStyle = 'rgba(255, 255, 200, 0.3)';
+      c.fillRect(x + 4 + doorWidth, y + 4, ts - 8 - doorWidth * 2, ts - 8);
+    } else {
+      // 电梯门关闭
+      c.fillStyle = '#7a7a8e';
+      c.fillRect(x + 4, y + 4, ts / 2 - 5, ts - 8);
+      c.fillRect(x + ts / 2 + 1, y + 4, ts / 2 - 5, ts - 8);
+      // 门缝
+      c.fillStyle = '#3a3a4e'; c.fillRect(x + ts / 2 - 1, y + 3, 2, ts - 6);
+    }
+
     // 楼层显示屏
     c.fillStyle = '#2a2a3e'; c.fillRect(x + ts / 2 - 5, y + 5, 10, 6);
     c.fillStyle = '#4ade80'; c.font = 'bold 6px monospace'; c.textAlign = 'center';
     const floor = Math.floor(t * 0.2) % 20 + 1;
     c.fillText(`${floor}F`, x + ts / 2, y + 10);
+
+    // 🚨 超载报警 — 红色闪烁边框
+    if (this.elevatorOverload) {
+      const flash = Math.sin(t * 8) > 0;
+      if (flash) {
+        c.strokeStyle = '#ff4444';
+        c.lineWidth = 3;
+        c.strokeRect(x + 1, y + 1, ts - 2, ts - 2);
+        // ⚠️ 超载标识
+        c.fillStyle = '#ff4444';
+        c.font = 'bold 8px sans-serif';
+        c.fillText('⚠️', x + ts / 2, y - 2);
+      }
+    }
+
     // 上下按钮
     c.fillStyle = Math.sin(t * 1.5) > 0 ? '#fbbf24' : '#888';
     c.fillRect(x + ts - 10, y + 6, 4, 4);
@@ -3821,9 +4053,14 @@ export class Renderer {
     const ctx = this.ctx;
     const px = a.x * ts + ts / 2, py = a.y * ts + ts / 2 + a.bobOffset;
     SpriteRenderer.drawAgent(ctx, px, py, a.config.role, a.state, a.animFrame, a.facing, time);
+    // 🎒 手持物品 — 咖啡杯/奶茶/外卖盒/笔记本/公文包
+    const p = Math.max(1, Math.floor(2));
+    const ox = px - 8 * p;
+    const oy = py - 12 * p;
+    SpriteRenderer.drawCarriedItem(ctx, px, py, a.carriedItem, p, ox, oy, time, a.facing);
     ctx.fillStyle = '#fff'; ctx.font = '8px monospace'; ctx.textAlign = 'center';
     ctx.fillText(a.config.name, px, py + ts / 2 + 10);
-    const emoji: Record<string, string> = { idle: '😴', walking: '🚶', typing: '⌨️', reading: '📖', waiting: '⏳', error: '❌', fetching_task: '📋', '摸鱼中': '🐟', '趴桌睡觉': '😴' };
+    const emoji: Record<string, string> = { idle: '😴', walking: '🚶', typing: '⌨️', reading: '📖', waiting: '⏳', error: '❌', fetching_task: '📋', '摸鱼中': '🐟', '趴桌睡觉': '😴', '打游戏中': '🎮' };
     ctx.font = '10px sans-serif';
     ctx.fillText(emoji[a.state] || '', px, py - ts / 2 - 8);
     if (a.currentTask) {

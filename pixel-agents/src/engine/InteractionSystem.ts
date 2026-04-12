@@ -80,9 +80,9 @@ const OBJECT_INTERACTIONS: Record<string, InteractableObject[]> = {
     nearbyTile: { x: 6, y: 5 },
   }],
   couch: [{
-    type: 'couch', x: 1, y: 5, label: '沙发', emoji: '🛋️',
+    type: 'couch', x: 3, y: 9, label: '沙发', emoji: '🛋️',
     actionText: '躺平摸鱼中...', actionDuration: 8, actionState: AgentState.Idle,
-    nearbyTile: { x: 2, y: 4 },
+    nearbyTile: { x: 3, y: 8 },
   }],
   whiteboard: [{
     type: 'whiteboard', x: 1, y: 1, label: '白板', emoji: '📝',
@@ -90,14 +90,14 @@ const OBJECT_INTERACTIONS: Record<string, InteractableObject[]> = {
     nearbyTile: { x: 2, y: 2 },
   }],
   bookshelf: [{
-    type: 'bookshelf', x: 10, y: 1, label: '书架', emoji: '📚',
+    type: 'bookshelf', x: 16, y: 1, label: '书架', emoji: '📚',
     actionText: '查文档中...', actionDuration: 5, actionState: AgentState.Reading,
-    nearbyTile: { x: 9, y: 2 },
+    nearbyTile: { x: 15, y: 2 },
   }],
   printer: [{
-    type: 'printer', x: 10, y: 9, label: '打印机', emoji: '🖨️',
+    type: 'printer', x: 7, y: 5, label: '打印机', emoji: '🖨️',
     actionText: '打印文件...', actionDuration: 4, actionState: AgentState.Waiting,
-    nearbyTile: { x: 9, y: 9 },
+    nearbyTile: { x: 6, y: 5 },
   }],
   meetingtable: [{
     type: 'meetingtable', x: 10, y: 1, label: '会议室', emoji: '🏢',
@@ -105,22 +105,22 @@ const OBJECT_INTERACTIONS: Record<string, InteractableObject[]> = {
     nearbyTile: { x: 8, y: 2 },
   }],
   microwave: [{
-    type: 'microwave', x: 10, y: 8, label: '微波炉', emoji: '🔥',
+    type: 'microwave', x: 15, y: 9, label: '微波炉', emoji: '🔥',
     actionText: '加热午餐...', actionDuration: 5, actionState: AgentState.Waiting,
-    nearbyTile: { x: 9, y: 8 },
+    nearbyTile: { x: 14, y: 8 },
   }],
   snackbar: [{
-    type: 'snackbar', x: 11, y: 8, label: '零食柜', emoji: '🍪',
+    type: 'snackbar', x: 16, y: 9, label: '零食柜', emoji: '🍪',
     actionText: '摸鱼吃零食...', actionDuration: 4, actionState: AgentState.Idle,
-    nearbyTile: { x: 9, y: 9 },
+    nearbyTile: { x: 15, y: 8 },
   }],
   restroom: [{
-    type: 'restroom', x: 1, y: 8, label: '卫生间', emoji: '🚻',
+    type: 'restroom', x: 17, y: 10, label: '卫生间', emoji: '🚻',
     actionText: '带薪上厕所...', actionDuration: 6, actionState: AgentState.Idle,
-    nearbyTile: { x: 2, y: 8 },
+    nearbyTile: { x: 16, y: 10 },
   }],
   signpost: [{
-    type: 'signpost', x: 10, y: 10, label: '导向标识', emoji: '🪧',
+    type: 'signpost', x: 10, y: 11, label: '导向标识', emoji: '🪧',
     actionText: '看路牌中...', actionDuration: 3, actionState: AgentState.Reading,
     nearbyTile: { x: 9, y: 10 },
   }],
@@ -130,9 +130,9 @@ const OBJECT_INTERACTIONS: Record<string, InteractableObject[]> = {
     nearbyTile: { x: 12, y: 10 },
   }],
   watercooler: [{
-    type: 'watercooler', x: 12, y: 8, label: '饮水机', emoji: '💧',
+    type: 'watercooler', x: 12, y: 9, label: '饮水机', emoji: '💧',
     actionText: '接水喝...', actionDuration: 4, actionState: AgentState.Waiting,
-    nearbyTile: { x: 11, y: 8 },
+    nearbyTile: { x: 11, y: 9 },
   }],
   umbrella: [{
     type: 'umbrella', x: 4, y: 10, label: '雨伞架', emoji: '☂️',
@@ -150,9 +150,9 @@ const OBJECT_INTERACTIONS: Record<string, InteractableObject[]> = {
     nearbyTile: { x: 3, y: 5 },
   }],
   vendingmachine: [{
-    type: 'vendingmachine', x: 11, y: 9, label: '自动售货机', emoji: '🥤',
+    type: 'vendingmachine', x: 13, y: 9, label: '自动售货机', emoji: '🥤',
     actionText: '选个饮料...', actionDuration: 5, actionState: AgentState.Waiting,
-    nearbyTile: { x: 10, y: 9 },
+    nearbyTile: { x: 12, y: 9 },
   }],
   phonebooth: [{
     type: 'phonebooth', x: 6, y: 8, label: '电话亭', emoji: '📞',
@@ -160,9 +160,9 @@ const OBJECT_INTERACTIONS: Record<string, InteractableObject[]> = {
     nearbyTile: { x: 5, y: 9 },
   }],
   serverrack: [{
-    type: 'serverrack', x: 1, y: 3, label: '服务器机房', emoji: '🖥️',
+    type: 'serverrack', x: 3, y: 6, label: '服务器机房', emoji: '🖥️',
     actionText: '紧急修复服务器...', actionDuration: 8, actionState: AgentState.Typing,
-    nearbyTile: { x: 3, y: 3 },
+    nearbyTile: { x: 3, y: 8 },
   }],
   airconditioner: [{
     type: 'airconditioner', x: 3, y: 1, label: '中央空调', emoji: '🌀',
@@ -170,9 +170,9 @@ const OBJECT_INTERACTIONS: Record<string, InteractableObject[]> = {
     nearbyTile: { x: 3, y: 2 },
   }],
   fireextinguisher: [{
-    type: 'fireextinguisher', x: 1, y: 7, label: '灭火器', emoji: '🧯',
+    type: 'fireextinguisher', x: 1, y: 8, label: '灭火器', emoji: '🧯',
     actionText: '安全检查中...', actionDuration: 3, actionState: AgentState.Reading,
-    nearbyTile: { x: 9, y: 6 },
+    nearbyTile: { x: 2, y: 8 },
   }],
   floorarrow: [{
     type: 'floorarrow', x: 8, y: 7, label: '导向箭头', emoji: '➡️',

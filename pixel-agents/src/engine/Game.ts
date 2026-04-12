@@ -112,6 +112,8 @@ export class Game {
   private birthdayCelebrated = false; // 🎂 今天是否已经触发庆祝
   private pingPongPlayers = new Set<string>(); // 🏓 正在打乒乓球的 agent
   private pingPongCooldown = 0; // 🏓 乒乓球桌冷却时间
+  private gamingAgents = new Set<string>(); // 🎮 正在打游戏的 agent
+  private gameConsoleCooldown = 0; // 🎮 游戏机冷却时间
   private snackShareCooldown = 0; // 🍪 零食分享冷却时间
   private deliveryPersonActive = false; // 🛵 外卖员是否在场
   private deliveryTimer = 0; // 🛵 外卖员停留计时器
@@ -150,6 +152,32 @@ export class Game {
     { x: 16, y: 8 }, // 排队2号位（微波炉右边）
   ];
   private microwaveQueueGossipCooldown = 0; // 排队闲聊冷却
+  // 🛗 电梯等梯行为 — 上下班高峰期 agents 聚集电梯口等待
+  private elevatorWaiting: Set<string> = new Set(); // 正在等电梯的 agent
+  // 🚨 电梯超载事件 — 人太多时电梯报警，一个人尴尬退出，经典办公室日常
+  private elevatorDoorOpen = false; // 电梯门是否打开
+  private elevatorDoorTimer = 0; // 电梯门打开计时
+  private elevatorOverloadTriggered = false; // 今天是否已触发超载事件
+  private elevatorOverloadAgent: string | null = null; // 被挤出电梯的倒霉蛋
+  private elevatorOverloadTimer = 0; // 超载事件计时
+  private elevatorArrivalTimer = 0; // 电梯到达计时
+  private elevatorHasArrived = false; // 电梯是否已到达本高峰
+  // 💰 发薪日庆祝 — 每月 15 号发工资，打工人最快乐的一天
+  private lastPaydayTrigger: number = 0; // 上次触发发薪日的日期 (1-31)
+  // 📞 会议召集系统 — 工作时间随机拉人去开会，真实办公室日常
+  private meetingActive = false; // 是否有进行中的会议
+  private meetingAgents: Set<string> = new Set(); // 参会的 agent 名字
+  private meetingTimer = 0; // 会议计时
+  private meetingCooldown = 0; // 会议冷却（避免频繁开会）
+  private meetingDuration = 0; // 会议持续时间
+  private meetingCalledCount = 0; // 已召集的参会人数
+  private expectedMeetingCount = 0; // 期望参会人数
+  private meetingPhase: 'calling' | 'in-progress' | 'ending' = 'calling'; // 会议阶段
+  // 🌐 网络断了 — 全办公室网络故障，经典办公室崩溃场景
+  private networkDown = false; // 网络是否断开
+  private networkTimer = 0; // 网络断开计时
+  private networkFixer: string | null = null; // 正在修网络的人
+  private networkFixStarted = false; // 是否已经开始修了
 
   constructor(canvas: HTMLCanvasElement, statusBar: HTMLElement, tooltip: HTMLElement, options: GameOptions = {}) {
     this.canvas = canvas; this.statusBar = statusBar; this.tooltip = tooltip;
@@ -246,6 +274,7 @@ export class Game {
   };
 
   private update(dt: number): void {
+    const chinaHour = (new Date().getUTCHours() + 8) % 24;
     for (const agent of this.agents) { if (!agent.isAbsent) agent.update(dt, this.tileMap); }
     this.cat.update(dt, this.tileMap);
     this.boss.update(dt, this.tileMap);
@@ -255,7 +284,7 @@ export class Game {
       for (const agent of this.agents) {
         if (agent.isAbsent) continue;
         if (this.boss.isNearby(agent.x, agent.y, 3)) {
-          if (agent.state === AgentState.摸鱼中 || agent.state === AgentState.Idle || agent.state === AgentState.Waiting || agent.state === AgentState.趴桌睡觉) {
+          if (agent.state === AgentState.摸鱼中 || agent.state === AgentState.Idle || agent.state === AgentState.Waiting || agent.state === AgentState.趴桌睡觉 || agent.state === AgentState.打游戏中) {
             agent.setState(AgentState.Typing);
             agent.speechBubble = '😰 假装工作中...';
             agent.speechTimer = 3;
@@ -271,6 +300,9 @@ export class Game {
       this.renderer.triggerEvent('🎉 老板走了！可以摸鱼了！', 6);
     }
     this.bossVisibleLast = this.boss.isVisible();
+
+    // 💰 发薪日庆祝 — 每月 15 号，打工人最快乐的一天！
+    this.checkPayday(chinaHour);
 
     const sounds = this.renderer.getSoundSystem();
     for (const agent of this.agents) {
@@ -288,6 +320,7 @@ export class Game {
     this.updateMicrowaveQueue(dt); // 🍱 微波炉排队状态更新
     this.renderer.setMicrowaveQueueState(this.microwaveBusy, this.microwaveQueue.length);
     this.checkElevatorWaiting(chinaHour); // 🛗 电梯等梯行为
+    this.renderer.setElevatorState(this.elevatorDoorOpen, this.elevatorOverload, this.elevatorOverloadAgent);
     this.checkMeetingRoom();
 
     // 💻 收集正在打字的工位，传给 Renderer 做显示器发光效果
@@ -360,6 +393,12 @@ export class Game {
         this.fixPrinter();
       }
     }
+
+    // 📞 会议召集 — 工作时间随机发起会议，拉人去开会
+    this.updateMeeting(dt, chinaHour, isWeekend);
+
+    // 🌐 网络断了 — 全办公室网络故障，打工人经典崩溃场景
+    this.updateNetworkOutage(dt, chinaHour, isWeekend);
   }
 
   private assignTasks(): void {
@@ -392,9 +431,9 @@ export class Game {
   private simulateAgentActivity(): void {
     if (this.agents.length === 0) return;
 
-    // 获取中国时区的小时 (UTC+8)
     const chinaHour = (new Date().getUTCHours() + 8) % 24;
     const isWeekend = [0, 6].includes(new Date().getUTCDay());
+    const isRaining = this.renderer.getDayNight().getState().weather === 'rain';
 
     // 🌙 周末加班模式 — 周六日 50% 概率有人来加班
     const isWeekendOvertimeMode = isWeekend && !this.weekendOvertimeAssigned;
@@ -573,8 +612,7 @@ export class Game {
     const isOffHours = chinaHour >= 22 || chinaHour < 8;
     // 😫 周一早上 (周一 8:00-10:00)
     const isMondayMorning = new Date().getUTCDay() === 1 && chinaHour >= 0 && chinaHour < 2; // UTC 0-2 = China 8-10
-    // 🌧️ 下雨天 — 打工人最烦的天气
-    const isRaining = this.renderer.getDayNight().getState().weather === 'rain';
+    // 🌧️ 下雨天 — 打工人最烦的天气 (isRaining already declared at top)
     // 📋 晨会站会 (工作日 9:00-10:00 中国时间)
     const isStandupTime = !isWeekend && chinaHour >= 1 && chinaHour < 2; // UTC 1-2 = China 9-10
 
@@ -654,6 +692,76 @@ export class Game {
     }
     // 过了早上时段重置打卡记录
     if (!isMorningArrival) { this.morningAttendanced.clear(); }
+
+    // 🎒 手持物品系统 — 根据时间和活动，agent 手上拿着不同的东西
+    // 早高峰 (8:00-10:00) → 咖啡杯 ☕
+    // 午休 (12:00-13:00) → 外卖盒 🍱
+    // 下午 (14:00-16:00) → 奶茶 🧋
+    // 加班 (19:00-22:00) → 笔记本 💻
+    // 下班离开 (17:00-19:00) → 公文包 💼
+    // 下雨天 → 雨伞 ☂️ (复用 hasUmbrella)
+    const isMorningCommute = chinaHour >= 0 && chinaHour < 2; // UTC 0-2 = China 8-10
+    const isDrinkTime = chinaHour >= 6 && chinaHour < 8;   // UTC 6-8 = China 14-16
+    const isEveningOvertime = chinaHour >= 11 && chinaHour < 14; // UTC 11-14 = China 19-22
+    const isEveningLeave = chinaHour >= 9 && chinaHour < 11;  // UTC 9-11 = China 17-19
+
+    for (const agent of this.agents) {
+      if (agent.isAbsent || agent.hasLeftOffice) {
+        agent.carriedItem = null;
+        continue;
+      }
+      // 物品有计时器，自动消失
+      if (agent.carriedItemTimer > 0) {
+        agent.carriedItemTimer -= dt;
+        if (agent.carriedItemTimer <= 0) {
+          agent.carriedItem = null;
+        }
+      }
+      // 已经在走路状态的不分配新物品（避免打断现有行为）
+      if (agent.state === AgentState.Walking) continue;
+
+      // 早高峰 → 咖啡杯（20% 概率，持续 15-30 秒）
+      if (isMorningCommute && !agent.carriedItem && Math.random() < 0.005) {
+        agent.carriedItem = 'coffee';
+        agent.carriedItemTimer = 15 + Math.random() * 15;
+        agent.speechBubble = '☕ 早安，续命咖啡先干为敬';
+        agent.speechTimer = 4;
+      }
+      // 下午茶时间 → 奶茶/咖啡（15% 概率，持续 20-35 秒）
+      if (isDrinkTime && !agent.carriedItem && Math.random() < 0.004) {
+        const drinks = ['milktea', 'coffee'];
+        agent.carriedItem = drinks[Math.floor(Math.random() * drinks.length)];
+        agent.carriedItemTimer = 20 + Math.random() * 15;
+        if (agent.carriedItem === 'milktea') {
+          agent.speechBubble = '🧋 下午茶！三分糖去冰加珍珠';
+        } else {
+          agent.speechBubble = '☕ 下午犯困，再来一杯';
+        }
+        agent.speechTimer = 4;
+      }
+      // 加班时间 → 笔记本电脑（30% 概率，持续 30-60 秒）
+      if (isEveningOvertime && !agent.carriedItem && Math.random() < 0.006) {
+        agent.carriedItem = 'laptop';
+        agent.carriedItemTimer = 30 + Math.random() * 30;
+        agent.speechBubble = '💻 加班中...这个 bug 今天必须搞定';
+        agent.speechTimer = 4;
+      }
+      // 下雨天 → 从雨伞架拿了伞的显示雨伞
+      if (isRaining && agent.hasUmbrella && !agent.carriedItem) {
+        agent.carriedItem = 'briefcase';
+        agent.carriedItemTimer = 5;
+        agent.speechBubble = '☂️ 下雨了，还好带了伞';
+        agent.speechTimer = 4;
+      }
+      // 下班离开 → 公文包
+      if (isEveningLeave && !agent.carriedItem && agent.state === AgentState.Idle && Math.random() < 0.003) {
+        agent.carriedItem = 'briefcase';
+        agent.carriedItemTimer = 20 + Math.random() * 20;
+        agent.speechBubble = '💼 下班啦，明天见！';
+        agent.speechTimer = 4;
+      }
+    }
+
     // 🌅 新的一天重置 — 中国时间凌晨（UTC 16-24），重置所有每日标志
     const isNewDay = chinaHour >= 0 && chinaHour < 1;
     if (isNewDay) {
@@ -667,6 +775,8 @@ export class Game {
       this.birthdayCelebrated = false;
       this.pingPongPlayers.clear();
       this.pingPongCooldown = 0;
+      this.gamingAgents.clear();
+      this.gameConsoleCooldown = 0;
       this.snackShareCooldown = 0;
       this.faceWashCooldown.clear();
       this.stretchCooldown.clear();
@@ -895,6 +1005,9 @@ export class Game {
             if (this.tileMap.isWalkable(7, 7) || this.tileMap.isWalkable(9, 7)) {
               const lunchSpotX = this.tileMap.isWalkable(7, 7) ? 7 : 9;
               agent.walkTo(lunchSpotX, 7, this.tileMap);
+              // 🎒 手上拿着外卖盒
+              agent.carriedItem = 'bento';
+              agent.carriedItemTimer = 12;
               const lunchMessages = [
                 '🍱 开饭了！今天吃啥？',
                 '🥡 自带午餐，健康又省钱',
@@ -959,6 +1072,9 @@ export class Game {
             lockerAgent.setState(AgentState.Waiting);
             lockerAgent.speechBubble = '📦 取到外卖了！';
             lockerAgent.speechTimer = 3;
+            // 🎒 取到外卖后手上拿着外卖盒
+            lockerAgent.carriedItem = 'bento';
+            lockerAgent.carriedItemTimer = 20;
             // 取完回工位吃
             setTimeout(() => {
               if (lockerAgent.state !== AgentState.Walking) {
@@ -1424,6 +1540,82 @@ export class Game {
       }
     }
 
+    // 🎮 复古游戏机 — 摸鱼圣地！agent 独自或双人打游戏
+    this.gameConsoleCooldown -= 1 / 12;
+    if (this.gameConsoleCooldown <= 0 && this.gamingAgents.size < 2) {
+      const slackingAgents = this.agents.filter(a =>
+        a.state === AgentState.摸鱼中 && !this.gamingAgents.has(a.config.name) && a.state !== AgentState.Walking
+      );
+      if (slackingAgents.length >= 1) {
+        // 选 1-2 个人去打游戏
+        const players = slackingAgents.slice(0, Math.min(2, slackingAgents.length));
+        const gameMessages = [
+          '🎮 来一局太空入侵者！',
+          '🎮 谁要一起打游戏？',
+          '🎮 让我通关这个Boss！',
+          '🎮 摸鱼打游戏，天经地义！',
+          '🎮 街机厅走起！Insert Coin!',
+        ];
+        const duoMessages = [
+          '🎮 双人对战！谁菜谁请客！',
+          '🎮 来PK一局！输了的不准生气！',
+          '🎮 经典双打！回忆童年！',
+        ];
+        // 🎮 游戏机在 (1,8)
+        const consoleSpots = [{ x: 1, y: 7 }, { x: 2, y: 8 }];
+        for (let i = 0; i < players.length; i++) {
+          const player = players[i];
+          this.gamingAgents.add(player.config.name);
+          player.walkTo(consoleSpots[i].x, consoleSpots[i].y, this.tileMap);
+          player.speechBubble = players.length >= 2
+            ? duoMessages[Math.floor(Math.random() * duoMessages.length)]
+            : gameMessages[Math.floor(Math.random() * gameMessages.length)];
+          player.speechTimer = 6;
+        }
+        // 打完游戏回工位
+        const gameDuration = 12000 + Math.random() * 8000;
+        setTimeout(() => {
+          for (const player of players) {
+            if (player.state !== AgentState.Walking) {
+              player.setState(AgentState.打游戏中);
+              player.stateTimer = 0;
+              const gamePlayingMsgs = [
+                '🕹️ 左边左边！跳！',
+                '🕹️ 按A键！快按A！',
+                '🕹️ 这关太难了吧...',
+                '🕹️ 就差一点了！',
+                '🎮 高手过招！',
+              ];
+              player.speechBubble = gamePlayingMsgs[Math.floor(Math.random() * gamePlayingMsgs.length)];
+              player.speechTimer = 8;
+              // 游戏结束回工位
+              setTimeout(() => {
+                if (player.state !== AgentState.Walking) {
+                  player.walkTo(player.config.deskX, player.config.deskY + 1, this.tileMap);
+                  this.gamingAgents.delete(player.config.name);
+                  this.gameConsoleCooldown = 4;
+                  setTimeout(() => {
+                    if (player.state !== AgentState.Walking) {
+                      player.setState(AgentState.摸鱼中);
+                      const gameOverMsgs = [
+                        '🎮 爽！又破纪录了！',
+                        '🎮 下次一定要通关！',
+                        '😤 又死了...再来！',
+                        '🎮 打游戏比写代码爽多了',
+                        '🎮 小时候的梦想是开街机厅',
+                      ];
+                      player.speechBubble = gameOverMsgs[Math.floor(Math.random() * gameOverMsgs.length)];
+                      player.speechTimer = 6;
+                    }
+                  }, 3000);
+                }
+              }, gameDuration);
+            }
+          }
+        }, 3000);
+      }
+    }
+
     // 🍪 零食分享 — 打工人的社交货币，零食柜前拿零食分给同事
     this.snackShareCooldown -= 1 / 12;
     if (this.snackShareCooldown <= 0 && !isWeekend && chinaHour >= 2 && chinaHour < 12) {
@@ -1596,6 +1788,9 @@ export class Game {
                     setTimeout(() => {
                       if (ordererAgent.state !== AgentState.Walking) {
                         this.milkTeaPickupDone = true;
+                        // 🎒 手上拎着奶茶
+                        ordererAgent.carriedItem = 'milktea';
+                        ordererAgent.carriedItemTimer = 30;
                         ordererAgent.speechBubble = `🧋 拿到 ${orderCount + 1} 杯奶茶！`;
                         ordererAgent.speechTimer = 5;
                         this.renderer.triggerEvent(`🧋 奶茶到了！共 ${orderCount + 1} 杯！`, 8);
@@ -1625,6 +1820,9 @@ export class Game {
                                       targetAgent.setState(AgentState.Idle);
                                       targetAgent.speechBubble = '🧋 喝到奶茶了！开心！';
                                       targetAgent.speechTimer = 8;
+                                      // 🎒 手上拿着奶茶杯
+                                      targetAgent.carriedItem = 'milktea';
+                                      targetAgent.carriedItemTimer = 15;
                                       // 🧋 桌上出现奶茶杯，持续 40 秒
                                       targetAgent.drinkOnDesk = order;
                                       targetAgent.drinkOnDeskTimer = 40;
@@ -1874,6 +2072,273 @@ export class Game {
     this.printerJamTimer = 0;
     this.printerFixer = null;
     this.printerJamPositions = [];
+  }
+
+  // 📞 会议召集 — 工作时间随机发起会议，拉人去开会
+  private updateMeeting(dt: number, chinaHour: number, isWeekend: boolean): void {
+    if (isWeekend) { this.meetingActive = false; return; }
+
+    // 会议冷却
+    if (this.meetingCooldown > 0) {
+      this.meetingCooldown -= dt;
+      if (this.meetingCooldown <= 0 && this.meetingActive) {
+        this.meetingActive = false;
+        this.meetingAgents.clear();
+        this.renderer.triggerEvent('🎉 会议结束了！终于解放了！', 6);
+        // 参会 agents 回工位
+        for (const agent of this.agents) {
+          if (this.meetingAgents.has(agent.config.name) && agent.state !== AgentState.Walking) {
+            agent.walkTo(agent.config.deskX, agent.config.deskY + 1, this.tileMap);
+            const returnMsgs = [
+              '😮‍💨 终于开完了，回到工位...',
+              '🙏 感谢会议结束，我要补作业了',
+              '📝 开会 1 小时，干活 5 分钟...',
+              '😑 刚才开会说了啥？完全没听...',
+            ];
+            agent.speechBubble = returnMsgs[Math.floor(Math.random() * returnMsgs.length)];
+            agent.speechTimer = 5;
+          }
+        }
+        this.meetingAgents.clear();
+      }
+      return;
+    }
+
+    if (!this.meetingActive) {
+      this.meetingTimer += dt;
+      // 工作时间 (中国 9:00-17:00)，每隔 60-120 秒可能触发会议
+      if (chinaHour >= 1 && chinaHour < 9 && this.meetingTimer > 60 + Math.random() * 60 && Math.random() < 0.12) {
+        this.startMeeting();
+      }
+    } else {
+      this.meetingTimer += dt;
+      // 会议进行中
+      if (this.meetingPhase === 'calling') {
+        // 等待 agents 到达会议室
+        const arrivedCount = this.agents.filter(a =>
+          this.meetingAgents.has(a.config.name) &&
+          Math.abs(a.x - 14.5) < 3 && Math.abs(a.y - 2) < 2
+        ).length;
+        if (arrivedCount >= this.expectedMeetingCount * 0.7 || this.meetingTimer > 20) {
+          this.meetingPhase = 'in-progress';
+          this.meetingTimer = 0;
+          this.meetingDuration = 15 + Math.random() * 20; // 15-35 秒会议
+          this.renderer.triggerEvent('📽️ 会议开始了！投影仪已打开', 6);
+          this.renderer.setMeetingRoomActive(true, arrivedCount);
+        }
+      } else if (this.meetingPhase === 'in-progress') {
+        // 会议中随机触发对话
+        if (Math.random() < 0.015) {
+          const inMeeting = this.agents.filter(a =>
+            this.meetingAgents.has(a.config.name) &&
+            Math.abs(a.x - 14.5) < 3 && Math.abs(a.y - 2) < 2
+          );
+          if (inMeeting.length > 0) {
+            const meetingDialogs = [
+              '这个需求得重新评估',
+              '技术方案谁写？',
+              '排期太紧了...',
+              '这个 sprint 能交付吗？',
+              '先 MVP 上线吧',
+              '用户反馈怎么说？',
+              '得加个灰度发布',
+              '性能指标达标了吗？',
+              '这个会开 2 小时了...',
+              '咱们快速对齐一下',
+              '我反对这个方案',
+              '要不先做个 demo 看看？',
+              '这个 bug 谁负责？',
+              '下次 meeting 前先把文档写好',
+            ];
+            const speaker = inMeeting[Math.floor(Math.random() * inMeeting.length)];
+            speaker.speechBubble = `📽️ "${meetingDialogs[Math.floor(Math.random() * meetingDialogs.length)]}"`;
+            speaker.speechTimer = 4;
+          }
+        }
+        // 会议时间到，结束
+        if (this.meetingTimer > this.meetingDuration) {
+          this.meetingPhase = 'ending';
+          this.meetingCooldown = 80 + Math.random() * 60; // 冷却 80-140 秒
+          this.meetingTimer = 0;
+        }
+      }
+    }
+  }
+
+  // 发起会议
+  private startMeeting(): void {
+    const meetingTypes = [
+      { name: '需求评审', count: 2 + Math.floor(Math.random() * 3) },
+      { name: '技术分享', count: 2 + Math.floor(Math.random() * 2) },
+      { name: 'Sprint 规划', count: 3 + Math.floor(Math.random() * 3) },
+      { name: '紧急会议', count: 2 + Math.floor(Math.random() * 2) },
+      { name: '周会', count: 3 + Math.floor(Math.random() * 3) },
+    ];
+    const meetingType = meetingTypes[Math.floor(Math.random() * meetingTypes.length)];
+
+    const availableAgents = this.agents.filter(a =>
+      !a.isAbsent && !a.hasLeftOffice &&
+      (a.state === AgentState.Idle || a.state === AgentState.Typing || a.state === AgentState.摸鱼中) &&
+      a.state !== AgentState.Walking
+    );
+
+    const count = Math.min(meetingType.count, availableAgents.length);
+    if (count < 2) return; // 至少需要 2 人
+
+    this.meetingActive = true;
+    this.meetingTimer = 0;
+    this.meetingPhase = 'calling';
+    this.expectedMeetingCount = count;
+    this.meetingCalledCount = 0;
+
+    const chosen = availableAgents.sort(() => Math.random() - 0.5).slice(0, count);
+    const meetingNames = chosen.map(a => a.config.name).join('、');
+
+    for (const agent of chosen) {
+      this.meetingAgents.add(agent.config.name);
+      const callMsgs = [
+        `📞 去开会了！${meetingType.name}`,
+        `😮‍💨 又要开会...`,
+        `📋 ${meetingType.name}，来了来了`,
+        `🤦 怎么又是我...`,
+      ];
+      agent.speechBubble = callMsgs[Math.floor(Math.random() * callMsgs.length)];
+      agent.speechTimer = 4;
+
+      setTimeout(() => {
+        if (agent.state !== AgentState.Walking) {
+          // 走到会议室 (14, 2) 附近
+          const spotX = 13 + Math.floor(Math.random() * 3);
+          const spotY = 1 + Math.floor(Math.random() * 2);
+          agent.walkTo(spotX, spotY, this.tileMap);
+          this.meetingCalledCount++;
+        }
+      }, 1000 + Math.random() * 2000);
+    }
+
+    this.renderer.triggerEvent(`📽️ ${meetingType.name}！${meetingNames} 去开会了`, 8);
+    this.renderer.getSoundSystem().playEvent();
+  }
+
+  // 🌐 网络断了 — 全办公室网络故障，打工人经典崩溃场景
+  private updateNetworkOutage(dt: number, chinaHour: number, isWeekend: boolean): void {
+    if (isWeekend) { this.networkDown = false; return; }
+
+    if (!this.networkDown) {
+      this.networkTimer += dt;
+      // 工作时间随机触发 (每 90-180 秒有概率)
+      if (chinaHour >= 1 && chinaHour < 9 && this.networkTimer > 90 && Math.random() < 0.04) {
+        this.triggerNetworkOutage();
+      }
+    } else {
+      this.networkTimer += dt;
+
+      // 网络断了期间：正在打字的 agents 停下来抱怨
+      if (!this.networkFixStarted && this.networkTimer > 5) {
+        this.networkFixStarted = true;
+        // 选一个人去修网络（靠近服务器机房的人）
+        const nearServer = this.agents.filter(a =>
+          !a.isAbsent && !a.hasLeftOffice &&
+          (a.state === AgentState.Idle || a.state === AgentState.摸鱼中)
+        );
+        if (nearServer.length > 0) {
+          const fixer = nearServer[Math.floor(Math.random() * nearServer.length)];
+          this.networkFixer = fixer.config.name;
+          fixer.walkTo(3, 7, this.tileMap); // 走到服务器机房附近
+          fixer.speechBubble = '🔧 我去看看路由器...';
+          fixer.speechTimer = 4;
+          setTimeout(() => {
+            if (fixer.state !== AgentState.Walking) {
+              fixer.speechBubble = '🔄 重启路由器中...';
+              fixer.speechTimer = 6;
+            }
+          }, 5000);
+          setTimeout(() => {
+            if (fixer.state !== AgentState.Walking) {
+              fixer.speechBubble = '✅ 重启好了！应该恢复了';
+              fixer.speechTimer = 4;
+              this.fixNetwork();
+            }
+          }, 12000);
+        } else {
+          // 没人主动修，自动恢复
+          setTimeout(() => this.fixNetwork(), 20000);
+        }
+      }
+    }
+  }
+
+  // 触发网络断开
+  private triggerNetworkOutage(): void {
+    this.networkDown = true;
+    this.networkTimer = 0;
+    this.networkFixStarted = false;
+    this.networkFixer = null;
+
+    const outageMsgs = [
+      '🌐 网络断了！！！谁把网线拔了？！',
+      '📡 WiFi 连不上了！救命！',
+      '🔌 网络又断了！我这版还没保存！',
+      '🌐 断网了！我的代码！我的 PR！',
+      '😱 网络崩了！紧急修复！',
+    ];
+    this.renderer.triggerEvent(outageMsgs[Math.floor(Math.random() * outageMsgs.length)], 10);
+    this.renderer.getSoundSystem().playEvent();
+
+    // 所有正在打字的 agents 停下来抱怨
+    for (const agent of this.agents) {
+      if (!agent.isAbsent && !agent.hasLeftOffice && agent.state === AgentState.Typing) {
+        const complainMsgs = [
+          '😡 网络怎么又断了！',
+          '🤬 我还没保存！！！',
+          '😭 断网了，我的 PR...',
+          '📡 连不上网了，怎么办...',
+          '💀 断网 = 强制休息？',
+          '🙃 正好，摸会儿鱼',
+          '📱 还好手机有流量...',
+          '🤷 断网了，那我先去接杯水',
+          '😤 IT 部门呢！快修啊！',
+          '🔌 是不是有人碰到路由器了？',
+        ];
+        agent.speechBubble = complainMsgs[Math.floor(Math.random() * complainMsgs.length)];
+        agent.speechTimer = 5;
+        // 停止打字
+        if (Math.random() < 0.5) {
+          agent.setState(AgentState.Idle);
+        }
+      }
+    }
+  }
+
+  // 修复网络
+  private fixNetwork(): void {
+    this.networkDown = false;
+    this.networkTimer = 0;
+    this.networkFixStarted = false;
+
+    const fixMsgs = [
+      '🌐 网络恢复了！大家继续工作！',
+      '✅ 网络修好了！虚惊一场！',
+      '🔧 网络已恢复，IT 部门立大功！',
+    ];
+    this.renderer.triggerEvent(fixMsgs[Math.floor(Math.random() * fixMsgs.length)], 8);
+
+    // agents 欢呼
+    for (const agent of this.agents) {
+      if (!agent.isAbsent && !agent.hasLeftOffice && (agent.state === AgentState.Idle || agent.state === AgentState.摸鱼中)) {
+        const cheerMsgs = [
+          '🎉 网络终于回来了！',
+          '🙏 感谢 IT 爸爸！',
+          '💪 继续搬砖！',
+          '😂 断网 5 分钟，像过了 5 年',
+          '📡 满格信号！舒服！',
+          '🎊 又可以提交代码了！',
+        ];
+        agent.speechBubble = cheerMsgs[Math.floor(Math.random() * cheerMsgs.length)];
+        agent.speechTimer = 5;
+      }
+    }
+    this.networkFixer = null;
   }
 
   // 🚶‍♂️ 饭后散步 — 吃完饭不急着回工位，在办公室溜达消食
@@ -2563,6 +3028,116 @@ export class Game {
         }
       }
     }
+
+    // 🚨 电梯到达 — 当 ≥3 人在等电梯时，电梯到达
+    if (!this.elevatorHasArrived && waitingAgents.length >= 3 && Math.random() < 0.03) {
+      this.elevatorHasArrived = true;
+      this.elevatorDoorOpen = true;
+      this.elevatorDoorTimer = 3;
+      this.elevatorArrivalTimer = 2;
+      // 通知等电梯的人
+      for (const agent of waitingAgents) {
+        if (agent.state !== AgentState.Walking) {
+          agent.speechBubble = '🛗 叮！电梯来了！';
+          agent.speechTimer = 3;
+          // 走到电梯口
+          agent.walkTo(7, 11, this.tileMap);
+        }
+      }
+    }
+
+    // 🚪 电梯门打开后，agents 尝试进入
+    if (this.elevatorDoorOpen && !this.elevatorOverloadTriggered) {
+      this.elevatorDoorTimer -= dt;
+
+      // 门打开一段时间后，判断是否超载
+      if (this.elevatorDoorTimer <= 0 && this.elevatorOverloadTriggered === false) {
+        const boardingCount = waitingAgents.filter(a => a.state !== AgentState.Walking).length;
+        const maxCapacity = 3; // 电梯最多挤 3 个人
+
+        if (boardingCount > maxCapacity) {
+          // 🚨 超载！电梯 beep beep！
+          this.elevatorOverloadTriggered = true;
+          this.elevatorOverloadTimer = 5;
+
+          // 随机选一个倒霉蛋被挤出去
+          const candidates = waitingAgents.filter(a => a.state !== AgentState.Walking);
+          const unluckyIndex = Math.floor(Math.random() * candidates.length);
+          const unluckyAgent = candidates[unluckyIndex];
+          this.elevatorOverloadAgent = unluckyAgent.config.name;
+
+          // 超载音效
+          this.renderer.sounds?.playError();
+
+          // 超载公告
+          this.interactions.addOfficeEvent('🚨 电梯超载！beep beep beep！请最后进来的那位出去一下…', '#ff4444');
+
+          // 倒霉蛋的尴尬反应
+          const unluckyReactions = [
+            '😅 好吧好吧我出去…',
+            '💀 为什么每次都是我被挤出来',
+            '🤦 行吧，你们先走，我等下一趟',
+            '😤 明明是我先按的电梯！',
+            '🫠 尴尬了，我退我退…',
+            '🙃 没事你们先走，我热爱工作',
+          ];
+          unluckyAgent.speechBubble = unluckyReactions[Math.floor(Math.random() * unluckyReactions.length)];
+          unluckyAgent.speechTimer = 5;
+
+          // 其他成功上电梯的人
+          const luckyOnes = candidates.filter(a => a !== unluckyAgent);
+          for (const lucky of luckyOnes) {
+            lucky.speechBubble = '😬 不好意思啊…先走了！';
+            lucky.speechTimer = 3;
+            lucky.hasLeftOffice = true;
+            setTimeout(() => {
+              if (lucky.hasLeftOffice) { lucky.x = -10; lucky.y = -10; }
+            }, 3000);
+          }
+
+          // 倒霉蛋回工位
+          setTimeout(() => {
+            if (!unluckyAgent.hasLeftOffice) {
+              unluckyAgent.walkTo(unluckyAgent.config.deskX, unluckyAgent.config.deskY + 1, this.tileMap);
+            }
+          }, 2000);
+        } else {
+          // 没超载，正常上电梯
+          for (const agent of waitingAgents) {
+            if (agent.state !== AgentState.Walking) {
+              agent.hasLeftOffice = true;
+              agent.speechBubble = '🛗 上了上了，拜拜！';
+              agent.speechTimer = 2;
+              setTimeout(() => {
+                if (agent.hasLeftOffice) { agent.x = -10; agent.y = -10; }
+              }, 2000);
+            }
+          }
+        }
+
+        // 关门
+        this.elevatorDoorOpen = false;
+      }
+    }
+
+    // 超载事件计时
+    if (this.elevatorOverloadTriggered) {
+      this.elevatorOverloadTimer -= dt;
+      if (this.elevatorOverloadTimer <= 0) {
+        this.elevatorOverloadTriggered = false;
+        this.elevatorOverloadAgent = null;
+      }
+    }
+
+    // 非高峰期重置电梯到达状态
+    const isMorningRush2 = chinaHour >= 0 && chinaHour < 2;
+    const isEveningRush2 = chinaHour >= 9 && chinaHour < 11;
+    if (!isMorningRush2 && !isEveningRush2) {
+      this.elevatorHasArrived = false;
+      this.elevatorDoorOpen = false;
+      this.elevatorOverloadTriggered = false;
+      this.elevatorOverloadAgent = null;
+    }
   }
 
   // 📽️ 会议室检测 — agents 聚集会议室时触发投影仪效果
@@ -2602,6 +3177,55 @@ export class Game {
     }
   }
 
+  // 💰 发薪日检查 — 每月 15 号，打工人的节日！
+  private checkPayday(chinaHour: number): void {
+    // 获取中国时间的日期
+    const now = new Date();
+    const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+    const chinaDay = new Date(utcMs + 8 * 3600000).getDate();
+
+    // 15 号发薪日，且今天还没触发过
+    if (chinaDay === 15 && this.lastPaydayTrigger !== 15 && chinaHour >= 9 && chinaHour <= 18) {
+      this.lastPaydayTrigger = 15;
+
+      // 🎉 发薪日横幅
+      this.renderer.triggerEvent('💰 发薪日！工资到账！打工人最快乐的一天！🎉', 12);
+
+      // 所有在办公室的 agent 都兴奋起来
+      const paydayDialogues = [
+        '💰 工资到账！今晚加餐！',
+        '🎉 终于发工资了！还信用卡！',
+        '💸 看到这个数字，我又能干了！',
+        '🛒 清空购物车！就等今天！',
+        '🍾 发工资了，请大家喝奶茶！',
+        '😭 工资刚到账就还完花呗了...',
+        '💰 看到工资条，我笑了...又哭了',
+        '🎊 发薪日！给自己买个礼物！',
+        '🤑 老板打钱的那一刻，我爱工作！',
+        '💪 发工资了，明天继续 996！',
+        '🥳 工资到账！先转 500 给老妈',
+        '📱 打开银行 App 的那一刻，值了！',
+      ];
+
+      for (const agent of this.agents) {
+        if (!agent.hasLeftOffice && !agent.isAbsent) {
+          agent.speechBubble = paydayDialogues[Math.floor(Math.random() * paydayDialogues.length)];
+          agent.speechTimer = 6;
+          // 每个 agent 放点彩带庆祝
+          this.renderer.triggerConfetti(
+            agent.x * this.renderer.tileSize + this.renderer.tileSize / 2,
+            agent.y * this.renderer.tileSize
+          );
+        }
+      }
+    }
+
+    // 过了 15 号就重置，下个月还能触发
+    if (chinaDay !== 15) {
+      this.lastPaydayTrigger = 0;
+    }
+  }
+
   addAgent(): void {
     if (this.nextAgentIndex >= this.deskSpots.length) return;
     const spot = this.deskSpots[this.nextAgentIndex];
@@ -2620,7 +3244,7 @@ export class Game {
   toggleSound(): boolean { return this.renderer.getSoundSystem().toggle(); }
 
   private updateStatusBar(): void {
-    const emoji: Record<string, string> = { idle: '😴', typing: '⌨️', walking: '🚶', reading: '📖', waiting: '⏳', error: '❌', '趴桌睡觉': '💤', '摸鱼中': '🐟', '伸懒腰': '🙆', '打哈欠': '🥱' };
+    const emoji: Record<string, string> = { idle: '😴', typing: '⌨️', walking: '🚶', reading: '📖', waiting: '⏳', error: '❌', '趴桌睡觉': '💤', '摸鱼中': '🐟', '伸懒腰': '🙆', '打哈欠': '🥱', '打游戏中': '🎮' };
     const mode = this.useSimulation ? 'SIM' : 'LIVE';
     const stats = this.kanban.getStats();
     const atm = this.renderer.getDayNight().getState();

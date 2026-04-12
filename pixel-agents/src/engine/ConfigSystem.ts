@@ -123,8 +123,27 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
   ],
   furniture: [
     // ========================================
+    // 走廊地面 — 🧶 地毯（真实办公室走廊铺地毯，减少脚步声）
+    // 上走廊 (x=8-10, y=2-6)
+    { type: 'carpet', x: 8, y: 2 }, { type: 'carpet', x: 9, y: 2 }, { type: 'carpet', x: 10, y: 2 },
+    { type: 'carpet', x: 8, y: 3 }, { type: 'carpet', x: 9, y: 3 }, { type: 'carpet', x: 10, y: 3 },
+    { type: 'carpet', x: 8, y: 4 }, { type: 'carpet', x: 9, y: 4 }, { type: 'carpet', x: 10, y: 4 },
+    { type: 'carpet', x: 8, y: 5 }, { type: 'carpet', x: 9, y: 5 }, { type: 'carpet', x: 10, y: 5 },
+    { type: 'carpet', x: 8, y: 6 }, { type: 'carpet', x: 9, y: 6 }, { type: 'carpet', x: 10, y: 6 },
+    // 走廊中部门洞区域
+    { type: 'carpet', x: 8, y: 7 }, { type: 'carpet', x: 10, y: 7 },
+    { type: 'carpet', x: 8, y: 8 }, { type: 'carpet', x: 10, y: 8 },
+    // 下走廊 (x=8-10, y=9-10)
+    { type: 'carpet', x: 8, y: 9 }, { type: 'carpet', x: 9, y: 9 }, { type: 'carpet', x: 10, y: 9 },
+    { type: 'carpet', x: 8, y: 10 }, { type: 'carpet', x: 9, y: 10 }, { type: 'carpet', x: 10, y: 10 },
+
+    // 🍽️ 午餐桌 — 走廊里的午餐区，打工人们围坐吃饭聊八卦的地方
+    // 放在下走廊靠右 (10,9)，茶水间旁边，方便拿完饭坐下来吃
+    { type: 'lunchtable', x: 10, y: 9 },
+
+    // ========================================
     // 隔墙 (x=9) — 分隔两个房间
-    // 上段 (y=1-6)
+    // 上段 (y=1-6) — 海报替代为半透明隔断，更现代
     { type: 'poster', x: 9, y: 1 },
     { type: 'poster', x: 9, y: 2 },
     { type: 'poster', x: 9, y: 3 },
@@ -145,10 +164,22 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
     { type: 'plant', x: 7, y: 4 },
     { type: 'lamp', x: 3, y: 1 },
     { type: 'lamp', x: 3, y: 4 },
+    // 💡 天花板灯盘 (左房间) — 真实办公室的 LED 嵌入式照明，昼夜呼吸调光
+    { type: 'ceilinglight', x: 4, y: 1 },
+    { type: 'ceilinglight', x: 5, y: 4 },
     // 打印机 (靠墙)
     { type: 'printer', x: 7, y: 5 },
     // 🧯 灭火器 — 左房间隔墙边 (1,7)，真实办公室安全标配
     { type: 'fireextinguisher', x: 1, y: 8 },
+
+    // 🖥️ 服务器机房 — 左房间左下角，玻璃围起来的小机房，真实科技公司标配
+    // 位置: x=2-3, y=6-7，用半透明玻璃隔断围起来，里面放服务器机柜
+    // 玻璃墙 (左侧) — walkable 的半透明玻璃
+    { type: 'serverroomglass', x: 2, y: 6 },
+    { type: 'serverroomglass', x: 2, y: 7 },
+    // 服务器机柜 (玻璃里面)
+    { type: 'serverrack', x: 3, y: 6 },
+    { type: 'serverrack', x: 3, y: 7 },
 
     // 办公区 A — 桌面物品
     { type: 'deskcup', x: 3, y: 3 },
@@ -166,6 +197,24 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
     { type: 'lamp', x: 14, y: 1 },
     { type: 'lamp', x: 14, y: 5 },
     { type: 'clock', x: 18, y: 1 },
+    // 💡 天花板灯盘 (右房间)
+    { type: 'ceilinglight', x: 14, y: 2 },
+    { type: 'ceilinglight', x: 15, y: 5 },
+    // 💡 天花板灯盘 (走廊) — 连接两个房间的主通道
+    { type: 'ceilinglight', x: 9, y: 3 },
+    { type: 'ceilinglight', x: 9, y: 5 },
+
+    // ➡️ 导向箭头 (走廊关键路口) — 打工人找路必备
+    // (8,2) → 指向茶水间方向 | (10,2) → 指向办公区
+    { type: 'floorarrow', x: 8, y: 2 },
+    { type: 'floorarrow', x: 10, y: 2 },
+    // (8,5) → 指向休息区 | (10,5) → 指向电梯
+    { type: 'floorarrow', x: 8, y: 5 },
+    { type: 'floorarrow', x: 10, y: 5 },
+
+    // 🏷️ 团队分区标识 — 走廊地面上的彩色团队标签，真实办公室标配
+    // 放在下走廊 (8,8)，正对门口，走进来第一眼就能看到团队分区
+    { type: 'zonelabel', x: 8, y: 8 },
 
     // 办公区 B — 桌面物品
     { type: 'deskphoto', x: 17, y: 3 },
@@ -203,7 +252,26 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
     { type: 'restroom', x: 17, y: 10 }, { type: 'restroom', x: 18, y: 10 },
 
     // ========================================
+    // 📊 KPI 看板 — 挂在走廊上方的绩效考核板，打工人看了就心累
+    // 放在顶部墙壁 x=9 — 正对走廊上方，走进办公室第一眼就能看到
+    { type: 'kpiboard', x: 9, y: 0 },
+
+    // ========================================
+    // 🌀 空调出风口 — 走廊天花板上的中央空调，打工人夏天的命都是它给的
+    // 放在走廊顶部 (9,1)，正对走廊上方，真实办公室走廊都有空调
+    { type: 'airconditioner', x: 9, y: 1 },
+
+    // 🌿 窗台绿植 — 放在窗户旁边的绿植，打工人最爱的风景线
+    // 左房间窗户 (7,1) 旁边放一盆
+    { type: 'windowplant', x: 6, y: 1 },
+
+    // ========================================
     // 入口区域 (y=11 — 倒数第二行，确保不被底墙覆盖)
+    // 🚪 WELCOME 地垫 — 电梯出来的走廊中央，迎宾专用
+    { type: 'welcomemat', x: 9, y: 10 },
+    // 🚪 WELCOME 地垫 — 电梯门口正前方，踩一踩再进办公室
+    { type: 'welcomemat', x: 9, y: 11 },
+
     // 🏢 前台 (左侧)
     { type: 'receptiondesk', x: 2, y: 11 }, { type: 'receptiondesk', x: 3, y: 11 },
     // 🛗 电梯 (中央偏左)
@@ -216,6 +284,9 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
     // 🏓 乒乓球桌 — 休息区经典配置，打工人下午摸鱼圣地
     // 放在休息区沙发旁边 (1,7)，旁边有足够空间走动
     { type: 'pingpong', x: 1, y: 6 },
+    // 🎮 复古游戏机 — 打工人的终极摸鱼圣地，CRT显示器+游戏手柄+闪烁屏幕
+    // 放在左房间休息区 (1,8)，紧挨着乒乓球桌和灭火器，形成完整的摸鱼角
+    { type: 'gameconsole', x: 1, y: 8 },
     // 🪑 茶水间吧台椅 — 打工人接完咖啡坐会儿歇脚的地方
     // 茶水间 y=9 是设备行，y=10 前面放凳子
     { type: 'barstool', x: 13, y: 11 },
@@ -240,6 +311,11 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
     { type: 'meetingglass', x: 13, y: 3 },
     { type: 'meetingglass', x: 14, y: 3 },
     { type: 'meetingglass', x: 15, y: 3 },
+
+    // 🪑 会议桌 — 会议室的核心！没有桌子的会议室就像没有床的卧室
+    // 2格横桌，带椅子和笔记本电脑，开会时投影仪光束打在桌上
+    { type: 'meetingtable', x: 14, y: 1 },
+    { type: 'meetingtable', x: 15, y: 1 },
   ],
 };
 

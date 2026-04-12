@@ -63,6 +63,8 @@ export enum TileType {
   PrinterJam = 56,
   // 🚪 会议室玻璃门 — 区别于普通玻璃隔断，有门把手+PUSH标识+开关动画
   MeetingDoor = 57,
+  // 🎮 复古游戏机 — 休息区摸鱼圣地，CRT显示器+手柄
+  GameConsole = 58,
 }
 
 export enum AgentState {
@@ -74,6 +76,7 @@ export enum AgentState {
   加班中 = 'overtime',
   伸懒腰 = 'stretching',
   打哈欠 = 'yawning',
+  打游戏中 = 'gaming',
 }
 
 export enum AgentRole {

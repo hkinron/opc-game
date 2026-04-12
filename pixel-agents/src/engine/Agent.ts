@@ -69,6 +69,10 @@ export class Agent {
   hasUmbrella = false; // 是否拿着伞
   umbrellaGrabbedToday = false; // 今天是否已经拿过伞（避免重复拿）
 
+  // 🎒 手持物品 — 根据时间和活动显示不同的手中道具
+  carriedItem: string | null = null; // 'coffee' | 'bento' | 'laptop' | 'briefcase' | 'milktea' | null
+  carriedItemTimer: number = 0; // 手持物品持续时间（秒）
+
   private static nextId = 1;
 
   constructor(config: AgentConfig, map: TileMap) {
@@ -200,6 +204,24 @@ export class Agent {
           this.stateTimer = 0;
           this.speechBubble = '😪 哈欠连天...';
           this.speechTimer = 3;
+        }
+        break;
+
+      case AgentState.打游戏中:
+        this.animFrame = Math.floor(this.animTimer * 8) % 4; // 快速按键动画
+        // 打游戏 20-40 秒，然后心满意足地回去
+        if (this.stateTimer > 20 + Math.random() * 20) {
+          this.state = AgentState.Idle;
+          this.stateTimer = 0;
+          const gameOverMsgs = [
+            '🎮 通关了！爽！',
+            '🎮 再来一局...',
+            '🎮 手感真好！',
+            '😤 又被 Boss 虐了...',
+            '🎮 高分！我太强了',
+          ];
+          this.speechBubble = gameOverMsgs[Math.floor(Math.random() * gameOverMsgs.length)];
+          this.speechTimer = 4;
         }
         break;
     }

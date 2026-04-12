@@ -422,6 +422,193 @@ export class SpriteRenderer {
       // 重新画角色配件
       this.drawAccessory(ctx, px, py, role, accessory, p, ox, oy, animFrame, time, state);
     }
+
+    // 🎮 打游戏中 — 双手握着手柄，身体微微前倾，专注地盯着屏幕
+    if (state === 'gaming') {
+      const buttonMash = Math.sin(time * 8); // 快速按键的节奏
+
+      // 身体 — 微微前倾，像打游戏时那样
+      pxl(4, 8, body, 8, 6);
+      pxl(5, 8, accent, 6, 1); // 衣服领口
+
+      // 手臂 — 双手向前伸，握着手柄
+      const armExtend = 1 + Math.floor(buttonMash * 0.5);
+      pxl(2, 9 + armExtend, body, 3, 2);
+      pxl(11, 9 + armExtend, body, 3, 2);
+
+      // 🎮 游戏手柄 — 双手各握一个
+      pxl(1, 10 + armExtend, '#222', 3, 2);
+      pxl(2, 10 + armExtend, '#444', 1, 1); // 按钮
+      pxl(12, 10 + armExtend, '#222', 3, 2);
+      pxl(12, 10 + armExtend, '#444', 1, 1); // 按钮
+
+      // 头 — 微微低着，盯着屏幕
+      pxl(5, 5, '#e8c39e', 6, 5);
+      pxl(5, 4, hairColor, 6, 2);
+
+      // 眼睛 — 专注地盯着前方（向下看屏幕）
+      pxl(6, 7, '#1e293b', 1, 1);
+      pxl(9, 7, '#1e293b', 1, 1);
+      pxl(6, 6, '#1e293b', 1, 1);
+      pxl(9, 6, '#1e293b', 1, 1);
+
+      // 嘴巴 — 紧张或兴奋
+      if (buttonMash > 0.5) {
+        pxl(7, 8, '#c2410c', 2, 1); // 兴奋：张嘴
+      } else if (buttonMash < -0.5) {
+        pxl(7, 8, '#8b0000', 2, 1); // 紧张：咬嘴唇
+      } else {
+        pxl(7, 8, '#c2410c', 2, 1); // 专注：抿嘴
+      }
+
+      // 腿 — 微微晃动
+      const legWiggle = Math.floor(Math.sin(time * 5) * 0.5);
+      pxl(5, 14, legs, 2, 3);
+      pxl(9, 14, legs, 2, 3);
+      pxl(4 + legWiggle, 16, '#1e293b', 3, 1);
+      pxl(9 - legWiggle, 16, '#1e293b', 3, 1);
+
+      // 🎮 游戏特效
+      if (Math.sin(time * 10) > 0.7) {
+        ctx.fillStyle = 'rgba(233,69,96,0.6)';
+        ctx.font = '6px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('🎮', px + 8 * p, oy - 2 * p);
+      }
+
+      // 重新画角色配件
+      this.drawAccessory(ctx, px, py, role, accessory, p, ox, oy, animFrame, time, state);
+    }
+  }
+
+  /**
+   * 🎒 绘制手持物品 — 根据 carriedItem 在角色手上画不同道具
+   * 咖啡杯 / 奶茶杯 / 外卖盒 / 笔记本电脑 / 公文包
+   */
+  static drawCarriedItem(
+    ctx: CanvasRenderingContext2D,
+    px: number, py: number,
+    carriedItem: string | null,
+    p: number, ox: number, oy: number,
+    time: number, facing: string
+  ): void {
+    if (!carriedItem) return;
+
+    const pxl = (x: number, y: number, color: string, w = 1, h = 1) => {
+      ctx.fillStyle = color;
+      ctx.fillRect(ox + x * p, oy + y * p, w * p, h * p);
+    };
+
+    // 手持物品画在角色右侧手上 (x=13-15, y=11-15)
+    const bob = Math.sin(time * 3) * 0.3; // 走路时轻微晃动
+
+    switch (carriedItem) {
+      case 'coffee': {
+        // ☕ 咖啡杯 — 纸杯 + 盖子 + 蒸汽
+        const cupX = 13;
+        const cupY = 11 + bob;
+        // 杯身（白色纸杯）
+        pxl(cupX, cupY, '#f5f5f5', 3, 3);
+        pxl(cupX + 1, cupY + 1, '#e0e0e0', 1, 1); // 杯身阴影
+        // 杯盖（棕色塑料盖）
+        pxl(cupX, cupY - 1, '#8d6e63', 3, 1);
+        pxl(cupX + 1, cupY - 2, '#8d6e63', 1, 1); // 盖子突起
+        // ☕ 咖啡杯套（瓦楞纸套）
+        pxl(cupX, cupY + 1, '#a1887f', 3, 1);
+        // 蒸汽（2 缕上升的白汽）
+        const steamPhase = Math.sin(time * 4);
+        if (steamPhase > -0.5) {
+          ctx.fillStyle = `rgba(255,255,255,${0.3 + steamPhase * 0.15})`;
+          ctx.font = '4px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText('~', px + 1 * p, oy + (cupY - 3) * p + Math.sin(time * 2) * p);
+          ctx.fillText('~', px + 3 * p, oy + (cupY - 2) * p + Math.sin(time * 2.5 + 1) * p);
+        }
+        break;
+      }
+      case 'milktea': {
+        // 🧋 奶茶杯 — 透明塑料杯 + 吸管 + 封口膜
+        const cupX = 13;
+        const cupY = 11 + bob;
+        // 杯身（半透明）
+        ctx.fillStyle = 'rgba(255,224,178,0.7)';
+        ctx.fillRect(ox + cupX * p, oy + cupY * p, 3 * p, 4 * p);
+        ctx.strokeStyle = 'rgba(200,180,150,0.5)';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(ox + cupX * p, oy + cupY * p, 3 * p, 4 * p);
+        // 奶茶液体颜色
+        pxl(cupX, cupY + 1, '#d7a86e', 3, 2);
+        // 封口膜（粉色）
+        pxl(cupX, cupY - 1, '#f48fb1', 3, 1);
+        // 吸管（绿色，斜着插）
+        ctx.strokeStyle = '#66bb6a';
+        ctx.lineWidth = p * 0.6;
+        ctx.beginPath();
+        ctx.moveTo(ox + (cupX + 2) * p, oy + (cupY - 1) * p);
+        ctx.lineTo(ox + (cupX + 3) * p, oy + (cupY - 4) * p);
+        ctx.stroke();
+        // 珍珠（底部小圆点）
+        ctx.fillStyle = '#4e342e';
+        ctx.beginPath();
+        ctx.arc(ox + (cupX + 1) * p, oy + (cupY + 3) * p, p * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      case 'bento': {
+        // 🍱 外卖盒 — 白色方形餐盒 + 红色logo
+        const boxX = 13;
+        const boxY = 12 + bob;
+        // 盒子主体
+        pxl(boxX, boxY, '#fafafa', 4, 3);
+        // 盒子边缘阴影
+        pxl(boxX, boxY + 2, '#e0e0e0', 4, 1);
+        // 盖子（淡蓝色）
+        pxl(boxX, boxY - 1, '#bbdefb', 4, 1);
+        // 红色外卖logo贴纸
+        pxl(boxX + 1, boxY, '#e53935', 2, 1);
+        // 提手（塑料袋）
+        ctx.strokeStyle = 'rgba(200,200,200,0.6)';
+        ctx.lineWidth = p * 0.5;
+        ctx.beginPath();
+        ctx.arc(ox + (boxX + 2) * p, oy + (boxY - 2) * p, 2 * p, Math.PI, 0);
+        ctx.stroke();
+        break;
+      }
+      case 'laptop': {
+        // 💻 笔记本电脑 — 夹在手臂下的银色笔记本
+        const lapX = 12;
+        const lapY = 9 + bob;
+        // 笔记本主体（银灰色）
+        pxl(lapX, lapY, '#b0bec5', 4, 3);
+        pxl(lapX + 1, lapY + 1, '#90a4ae', 2, 1); // 键盘区
+        // 品牌logo（小方块）
+        pxl(lapX + 2, lapY, '#ffffff', 1, 1);
+        // 手臂夹住
+        pxl(lapX - 1, lapY, body, 1, 3);
+        break;
+      }
+      case 'briefcase': {
+        // 💼 公文包 — 手提的黑色皮包
+        const bagX = 13;
+        const bagY = 13 + bob;
+        // 包体
+        pxl(bagX, bagY, '#5d4037', 4, 3);
+        // 包的轮廓线
+        pxl(bagX, bagY, '#4e342e', 1, 3);
+        pxl(bagX + 3, bagY, '#4e342e', 1, 3);
+        pxl(bagX + 1, bagY, '#4e342e', 2, 1);
+        pxl(bagX + 1, bagY + 2, '#4e342e', 2, 1);
+        // 锁扣
+        pxl(bagX + 1, bagY + 1, '#ffd54f', 2, 1);
+        // 提手
+        ctx.strokeStyle = '#4e342e';
+        ctx.lineWidth = p;
+        ctx.beginPath();
+        ctx.arc(ox + (bagX + 2) * p, oy + (bagY - 1) * p, 1.5 * p, Math.PI, 0);
+        ctx.stroke();
+        break;
+      }
+    }
   }
 
   private static drawAccessory(
