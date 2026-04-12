@@ -129,6 +129,17 @@ export class Game {
   private printerJamTimer = 0; // 🖨️ 卡纸持续时间
   private printerJamPositions: { x: number; y: number }[] = []; // 🖨️ 原始打印机位置
   private printerFixer: string | null = null; // 🖨️ 正在修打印机的 agent
+  // ☕ 咖啡机排队系统 — 多人同时想接咖啡时自动排队，真实办公室日常
+  private coffeeMachineBusy = false; // 咖啡机是否正在被使用
+  private coffeeMachineUser: string | null = null; // 正在用咖啡机的人
+  private coffeeMachineTimer: number = 0; // 当前使用者剩余时间（秒）
+  private coffeeQueue: string[] = []; // 排队队列（agent name）
+  private coffeeQueueSpots = [ // 排队站位
+    { x: 12, y: 9 }, // 排队1号位（咖啡机左边）
+    { x: 12, y: 8 }, // 排队2号位
+    { x: 11, y: 9 }, // 排队3号位
+  ];
+  private coffeeQueueGossipCooldown = 0; // 排队闲聊冷却
 
   constructor(canvas: HTMLCanvasElement, statusBar: HTMLElement, tooltip: HTMLElement, options: GameOptions = {}) {
     this.canvas = canvas; this.statusBar = statusBar; this.tooltip = tooltip;
@@ -148,6 +159,7 @@ export class Game {
     this.renderer.setInteractions(this.interactions);
     this.renderer.setOfficeCat(this.cat);
     this.renderer.setBoss(this.boss);
+    this.renderer.resize(this.canvas); // Initial resize to fit the window
     this.setupInteraction();
     if (options.wsUrl) this.connectWebSocket(options.wsUrl);
   }
@@ -260,6 +272,9 @@ export class Game {
     this.checkLunchTableGossip();
     this.checkTeaRoomGossip();
     this.checkWaterCoolerGossip();
+    this.checkBarStoolGossip();
+    this.updateCoffeeMachine(dt); // ☕ 咖啡机排队状态更新
+    this.renderer.setCoffeeQueueState(this.coffeeMachineBusy, this.coffeeQueue.length);
     this.checkMeetingRoom();
 
     // 💻 收集正在打字的工位，传给 Renderer 做显示器发光效果
@@ -1178,31 +1193,47 @@ export class Game {
             }, 4000);
           }
         }
-        // ☕ 下午咖啡时间 (15:00-16:00) — 集体去接咖啡/买饮料
+        // ☕ 下午咖啡时间 (15:00-16:00) — 咖啡机排队系统，真实办公室经典场景
         if (isCoffeeRush && Math.random() < 0.15 && agent.state !== AgentState.Walking) {
-          const coffeeSpots = [
-            { x: 13, y: 7, msg: '☕ 续命咖啡...' },
-            { x: 15, y: 7, msg: '💧 接杯水清醒一下...' },
-            { x: 12, y: 9, msg: '🥤 自动售货机来罐红牛...' },
-            { x: 11, y: 8, msg: '🍪 摸鱼吃零食回血...' },
+          this.tryGetCoffee(agent);
+        }
+        // 🪑 茶水间吧台椅休息 — 打完咖啡坐在高脚凳上歇会儿，真实办公室经典场景
+        if (isCoffeeRush && Math.random() < 0.08 && agent.state !== AgentState.Walking) {
+          const barStoolSpots = [
+            { x: 13, y: 10, msg: '🪑 坐吧台椅上喝口咖啡…这才是摸鱼的正确姿势' },
+            { x: 14, y: 10, msg: '🪑 高脚凳上瘫一会儿…脚够不着地的那种' },
+            { x: 15, y: 10, msg: '🪑 坐在吧台椅上刷手机…假装在思考人生' },
           ];
-          const spot = coffeeSpots[Math.floor(Math.random() * coffeeSpots.length)];
-          if (this.tileMap.isWalkable(spot.x - 1, spot.y)) {
-            agent.walkTo(spot.x - 1, spot.y, this.tileMap);
+          const spot = barStoolSpots[Math.floor(Math.random() * barStoolSpots.length)];
+          if (this.tileMap.isWalkable(spot.x, spot.y)) {
+            agent.walkTo(spot.x, spot.y, this.tileMap);
             agent.speechBubble = spot.msg;
-            agent.speechTimer = 4;
+            agent.speechTimer = 5;
             setTimeout(() => {
               if (agent.state !== AgentState.Walking) {
-                agent.setState(AgentState.Typing);
-                agent.speechBubble = '💪 复活了！继续干活！';
-                agent.speechTimer = 6;
+                agent.setState(AgentState.Idle);
+                agent.speechTimer = 0;
+                // 坐在吧台椅上摸鱼 8-15 秒
                 setTimeout(() => {
                   if (agent.state !== AgentState.Walking) {
                     agent.walkTo(agent.config.deskX, agent.config.deskY + 1, this.tileMap);
+                    setTimeout(() => {
+                      if (agent.state !== AgentState.Walking) {
+                        agent.setState(AgentState.Typing);
+                        const backMsgs = [
+                          '💪 歇完了，继续搬砖！',
+                          '😤 吧台椅坐久了腰疼...回去干活',
+                          '☕ 咖啡喝完了，回去面对现实',
+                          '🪑 高脚凳虽好，但还是要写代码...',
+                        ];
+                        agent.speechBubble = backMsgs[Math.floor(Math.random() * backMsgs.length)];
+                        agent.speechTimer = 5;
+                      }
+                    }, 3000);
                   }
-                }, 5000 + Math.random() * 5000);
+                }, 8000 + Math.random() * 7000);
               }
-            }, 6000 + Math.random() * 4000);
+            }, 4000);
           }
         }
         // 🪟 看看窗外 — 工作久了站起来去窗边发呆，打工人专属放松方式
@@ -1333,9 +1364,12 @@ export class Game {
           '👀 围观中...好球！',
           '🏓 等我吃完这包薯片就来！',
         ];
-        for (const player of players) {
+        // 🏓 乒乓球桌在 (1,7) — 两个 agent 分站两侧对打
+        const pingPongSpots = [{ x: 1, y: 6 }, { x: 1, y: 8 }];
+        for (let i = 0; i < players.length; i++) {
+          const player = players[i];
           this.pingPongPlayers.add(player.config.name);
-          player.walkTo(6, 9, this.tileMap);
+          player.walkTo(pingPongSpots[i].x, pingPongSpots[i].y, this.tileMap);
           player.speechBubble = pingPongMessages[Math.floor(Math.random() * pingPongMessages.length)];
           player.speechTimer = 6;
         }
@@ -2029,6 +2063,194 @@ export class Game {
 
         this.gossipCooldown.set(cooldownKey, now + 45000);
       }
+    }
+  }
+
+  // 🪑 吧台椅闲聊 — 两个 agent 同时坐在茶水间吧台椅上时触发闲聊
+  private checkBarStoolGossip(): void {
+    const barStoolSpots = [
+      { x: 13, y: 10 }, { x: 14, y: 10 }, { x: 15, y: 10 },
+    ];
+
+    const atBarStools = this.agents.filter(a => {
+      // Agent is considered "at a bar stool" if they're on or very near a stool tile
+      return barStoolSpots.some(s => Math.abs(a.x - s.x) <= 1 && Math.abs(a.y - s.y) <= 1);
+    });
+
+    if (atBarStools.length >= 2) {
+      const pairKey = atBarStools.slice(0, 2).map(a => a.id).sort().join('-');
+      const cooldownKey = `barstool-${pairKey}`;
+      const now = Date.now();
+      const cooldown = this.gossipCooldown.get(cooldownKey) || 0;
+
+      if (now > cooldown) {
+        const barStoolGossip = [
+          { a: '这吧台椅坐着真舒服', b: '是啊，比工位椅子舒服多了 🪑' },
+          { a: '你也是来接咖啡的？', b: '对，下午不喝一杯扛不住 ☕' },
+          { a: '今天工作进度怎么样？', b: '别提了，需求又改了 😮‍💨' },
+          { a: '晚上吃什么？', b: '还没想好，你推荐一家 🤔' },
+          { a: '听说楼下开了家新店', b: '真的？下班去试试 🍜' },
+          { a: '周末有什么计划？', b: '在家躺两天，谁也别叫我 🛌' },
+          { a: '你用过那个新出的AI工具吗？', b: '用了，确实能提高不少效率 🤖' },
+          { a: '老板今天心情怎么样？', b: '看着还行，应该没挨骂 😅' },
+          { a: '公司什么时候涨工资啊', b: '做梦吧，先把KPI过了再说 💰' },
+          { a: '我觉得咱们该提个加薪', b: '你先去说，我后面跟着 🫣' },
+        ];
+        const gossip = barStoolGossip[Math.floor(Math.random() * barStoolGossip.length)];
+        const [a, b] = atBarStools;
+
+        a.speechBubble = `${b.config.name}: "${gossip.a}"`;
+        a.speechTimer = 5;
+        a.facing = a.x < b.x ? 'right' : 'left';
+
+        setTimeout(() => {
+          if (b.state !== AgentState.Walking) {
+            b.speechBubble = `${a.config.name}: "${gossip.b}"`;
+            b.speechTimer = 5;
+            b.facing = b.x < a.x ? 'right' : 'left';
+          }
+        }, 2000);
+
+        this.gossipCooldown.set(cooldownKey, now + 50000);
+      }
+    }
+  }
+
+  // ☕ 咖啡机排队系统 — 多人想接咖啡时自动排队，真实办公室经典场景
+  private tryGetCoffee(agent: any): void {
+    const coffeeX = 13; // 咖啡机位置
+    const coffeeY = 9;
+
+    if (!this.coffeeMachineBusy) {
+      // 咖啡机空闲，直接使用
+      this.coffeeMachineBusy = true;
+      this.coffeeMachineUser = agent.config.name;
+      this.coffeeMachineTimer = 6 + Math.random() * 4; // 6-10秒
+
+      const useMessages = [
+        '☕ 续命咖啡...',
+        '☕ 来杯美式，今天还得加班呢',
+        '☕ 不加糖不加奶，打工人标配',
+        '☕ 再来一杯，下午靠这个续命',
+      ];
+      agent.walkTo(coffeeX - 1, coffeeY, this.tileMap);
+      agent.speechBubble = useMessages[Math.floor(Math.random() * useMessages.length)];
+      agent.speechTimer = 4;
+    } else if (this.coffeeQueue.length < this.coffeeQueueSpots.length) {
+      // 咖啡机忙，加入排队
+      const spotIndex = this.coffeeQueue.length;
+      const spot = this.coffeeQueueSpots[spotIndex];
+      this.coffeeQueue.push(agent.config.name);
+
+      const queueMessages = [
+        '☕ 前面还有人？排排队...',
+        '☕ 等我前面的那位接完...',
+        '☕ 排个队，顺便想想下午干什么',
+      ];
+      agent.walkTo(spot.x, spot.y, this.tileMap);
+      agent.speechBubble = queueMessages[Math.floor(Math.random() * queueMessages.length)];
+      agent.speechTimer = 4;
+
+      // 排队闲聊 — 如果前面还有人
+      if (this.coffeeQueue.length >= 2) {
+        this.coffeeQueueGossipCooldown -= 1;
+        if (this.coffeeQueueGossipCooldown <= 0) {
+          const q = this.coffeeQueue;
+          const gossipPairs = [
+            { a: '这咖啡机怎么这么慢', b: '人家在慢慢拉花呢 ☕' },
+            { a: '你也来接咖啡？', b: '不接咖啡下午怎么活得下去' },
+            { a: '今天第几杯了？', b: '第三杯...别告诉我老板 🤫' },
+            { a: '排队正好摸会儿鱼', b: '嘘，别被leader看到 👀' },
+            { a: '你说咖啡机能不能自动出钱', b: '那老板得哭死 😂' },
+            { a: '我困得不行了', b: '接完这杯就好了，加油！' },
+          ];
+          const gossip = gossipPairs[Math.floor(Math.random() * gossipPairs.length)];
+          const firstInQueue = this.agents.find(a => a.config.name === q[0]);
+          const secondInQueue = this.agents.find(a => a.config.name === q[1]);
+          if (firstInQueue && secondInQueue) {
+            firstInQueue.speechBubble = gossip.a;
+            firstInQueue.speechTimer = 4;
+            setTimeout(() => {
+              if (secondInQueue.state !== AgentState.Walking) {
+                secondInQueue.speechBubble = gossip.b;
+                secondInQueue.speechTimer = 4;
+              }
+            }, 2000);
+            this.coffeeQueueGossipCooldown = 30; // 30秒冷却
+          }
+        }
+      }
+    } else {
+      // 队列满了，不去接了
+      if (Math.random() < 0.3) {
+        agent.speechBubble = '☕ 排队的人太多了，算了...';
+        agent.speechTimer = 3;
+      }
+    }
+  }
+
+  // ☕ 更新咖啡机状态 — 每秒检查一次
+  private updateCoffeeMachine(deltaTime: number): void {
+    if (this.coffeeMachineBusy && this.coffeeMachineUser) {
+      this.coffeeMachineTimer -= deltaTime;
+
+      if (this.coffeeMachineTimer <= 0) {
+        // 当前用户接完咖啡
+        const user = this.agents.find(a => a.config.name === this.coffeeMachineUser);
+        if (user && user.state !== AgentState.Walking) {
+          user.setState(AgentState.Waiting);
+          const doneMessages = [
+            '☕ 接好了！香！',
+            '☕ 搞定，满血复活！',
+            '☕ 续命成功！',
+          ];
+          user.speechBubble = doneMessages[Math.floor(Math.random() * doneMessages.length)];
+          user.speechTimer = 4;
+
+          setTimeout(() => {
+            if (user.state !== AgentState.Walking) {
+              user.walkTo(user.config.deskX, user.config.deskY + 1, this.tileMap);
+              setTimeout(() => {
+                if (user.state !== AgentState.Walking) {
+                  user.setState(AgentState.Typing);
+                }
+              }, 3000);
+            }
+          }, 2000);
+        }
+
+        this.coffeeMachineBusy = false;
+        this.coffeeMachineUser = null;
+
+        // 下一个排队的人上前
+        if (this.coffeeQueue.length > 0) {
+          const next = this.coffeeQueue.shift()!;
+          const nextAgent = this.agents.find(a => a.config.name === next);
+          if (nextAgent) {
+            this.coffeeMachineBusy = true;
+            this.coffeeMachineUser = nextAgent.config.name;
+            this.coffeeMachineTimer = 6 + Math.random() * 4;
+
+            nextAgent.walkTo(12, 9, this.tileMap); // 走到咖啡机前
+            nextAgent.speechBubble = '☕ 轮到我了！';
+            nextAgent.speechTimer = 3;
+
+            // 后面的人往前挪
+            this.coffeeQueue.forEach((queued, i) => {
+              const spot = this.coffeeQueueSpots[i];
+              const queuedAgent = this.agents.find(a => a.config.name === queued);
+              if (queuedAgent) {
+                queuedAgent.walkTo(spot.x, spot.y, this.tileMap);
+              }
+            });
+          }
+        }
+      }
+    }
+
+    // 冷却计时
+    if (this.coffeeQueueGossipCooldown > 0) {
+      this.coffeeQueueGossipCooldown -= deltaTime;
     }
   }
 

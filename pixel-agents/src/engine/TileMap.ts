@@ -68,6 +68,8 @@ export const TILE_CONFIG: Record<TileType, TileConfig> = {
   [TileType.CeilingLight]: { name: 'CeilingLight', color: '#d8d8e8', borderColor: '#fbbf24', walkable: false },
   // 🖨️ 打印机卡纸 — 打印机故障状态，亮红灯、吐纸
   [TileType.PrinterJam]: { name: 'PrinterJam', color: '#8b3a3a', borderColor: '#ff4444', walkable: false },
+  // 🚪 会议室玻璃门 — 可通行，有门把手和PUSH标识
+  [TileType.MeetingDoor]: { name: 'MeetingDoor', color: '#2a4a6a', borderColor: '#fbbf24', walkable: true },
 };
 
 export const KANBAN_BOARD = { x: 4, y: 1, width: 4 };
@@ -101,6 +103,8 @@ const FURNITURE_MAP: Record<string, TileType> = {
   kpiboard: TileType.KPIBoard,
   ceilinglight: TileType.CeilingLight,
   printerjam: TileType.PrinterJam,
+  meetingwhiteboard: TileType.MeetingWhiteboard,
+  meetingdoor: TileType.MeetingDoor,
 };
 
 export class TileMap {

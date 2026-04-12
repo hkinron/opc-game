@@ -39,8 +39,12 @@ export class Renderer {
   private snowFlakes: SnowFlake[] = [];
   private meetingRoomActive: boolean = false;
   private meetingAgentCount: number = 0;
+  private meetingStartTime: number = 0; // ⏱️ 会议开始时间（秒），用于计时
   private activityLevel: number = 0.5; // 📊 办公室活跃度 0-1
   private activeAgentCount: number = 0;
+  // ☕ 咖啡机排队可视化
+  private coffeeMachineBusy = false;
+  private coffeeQueueLength = 0;
   private typingDesks: Set<string> = new Set(); // 💻 正在打字的工位 "x,y"
   private idleDesks: Set<string> = new Set(); // 🖥️ 无人使用的工位 — 显示器关闭/待机状态
   private weekendOvertimeDesks: Set<string> = new Set(); // 🌙 周末加班工位 — 非加班工位显示器关闭，办公室灯光调暗
@@ -75,11 +79,23 @@ export class Renderer {
   setHoverTile(x: number, y: number): void { this.hoverTile = { x, y }; }
   getSoundSystem(): SoundSystem { return this.sounds; }
   getDayNight(): DayNightCycle { return this.dayNight; }
-  setMeetingRoomActive(active: boolean, agentCount: number): void { this.meetingRoomActive = active; this.meetingAgentCount = agentCount; }
+  setMeetingRoomActive(active: boolean, agentCount: number): void {
+    this.meetingRoomActive = active;
+    this.meetingAgentCount = agentCount;
+    // ⏱️ 会议开始时记录时间，用于白板计时器
+    if (active && agentCount >= 2 && this.meetingStartTime === 0) {
+      this.meetingStartTime = performance.now() / 1000;
+    }
+    if (!active) {
+      this.meetingStartTime = 0;
+    }
+  }
   setActivityLevel(level: number, count: number): void { this.activityLevel = Math.max(0, Math.min(1, level)); this.activeAgentCount = count; }
   setTypingDesks(desks: Set<string>): void { this.typingDesks = desks; }
   setIdleDesks(desks: Set<string>): void { this.idleDesks = desks; }
   setWeekendOvertimeDesks(desks: Set<string>): void { this.weekendOvertimeDesks = desks; }
+  // ☕ 咖啡机排队状态
+  setCoffeeQueueState(busy: boolean, queueLen: number): void { this.coffeeMachineBusy = busy; this.coffeeQueueLength = queueLen; }
 
   triggerEvent(msg: string, duration: number = 15): void {
     const colors = ['#e74c3c', '#f39c12', '#2ecc71', '#3498db', '#9b59b6', '#e67e22'];
@@ -129,7 +145,7 @@ export class Renderer {
         const type = this.tileMap.tiles[y][x], px = x * ts, py = y * ts;
 
         if (type === TileType.Wall) {
-          this.drawWall(px, py, ts, x, y);
+          this.drawWall(px, py, ts, x, y, time);
         } else if (type === TileType.Floor) {
           this.drawFloor(px, py, ts, x, y, time);
         }
@@ -177,6 +193,7 @@ export class Renderer {
         else if (type === TileType.BirthdayCake) this.drawBirthdayCake(px, py, ts, time);
         else if (type === TileType.WelcomeMat) this.drawWelcomeMat(px, py, ts, time);
         else if (type === TileType.MeetingGlass) this.drawMeetingGlass(px, py, ts, time, x, y);
+        else if (type === TileType.MeetingDoor) this.drawMeetingDoor(px, py, ts, time, x, y);
         else if (type === TileType.MeetingWhiteboard) this.drawMeetingWhiteboard(px, py, ts, time);
         else if (type === TileType.BarStool) this.drawBarStool(px, py, ts, time);
         else if (type === TileType.VisitorSofa) this.drawVisitorSofa(px, py, ts, time);
@@ -210,6 +227,11 @@ export class Renderer {
 
     // 🛵 外卖员 — 前台等外卖来拿
     if (this.deliveryPerson) this.drawDeliveryPerson(this.deliveryPerson, ts, time);
+
+    // ☕ 咖啡机排队指示器 — 有人在排队时显示排队人数
+    if (this.coffeeMachineBusy || this.coffeeQueueLength > 0) {
+      this.drawCoffeeQueueIndicator(ts, time);
+    }
 
     // Kanban overlay
     if (this.kanbanBoard) this.drawKanbanOverlay(ts, time);
@@ -465,7 +487,7 @@ export class Renderer {
     c.strokeRect(x + 0.5, y + 0.5, ts - 1, ts - 1);
   }
 
-  private drawWall(x: number, y: number, ts: number, tx: number, ty: number): void {
+  private drawWall(x: number, y: number, ts: number, tx: number, ty: number, t: number): void {
     const c = this.ctx;
     // 墙体 — 深色砖墙 (参考 pablodelucca/pixel-agents 风格)
     c.fillStyle = '#3a3a52';
@@ -514,15 +536,15 @@ export class Renderer {
     }
     // 🏆 公司荣誉墙 — 顶部墙壁上的公司照片/奖杯
     if (tx > 0 && tx < this.tileMap.width - 1 && ty === 0 && tx === 2) {
-      this.drawCorporatePhoto(x, y, ts, time);
+      this.drawCorporatePhoto(x, y, ts, t);
     }
     // 🏅 团队成就奖 — 走廊隔墙上的团队奖项展示
     if (tx > 0 && tx < this.tileMap.width - 1 && ty === 7 && (tx === 8 || tx === 9)) {
-      this.drawTeamAward(x, y, ts, time, tx);
+      this.drawTeamAward(x, y, ts, t, tx);
     }
     // 📜 公司发展历程 — 底部走廊墙上的公司时间线
     if (tx > 0 && tx < this.tileMap.width - 1 && ty === 10 && tx === 12) {
-      this.drawCompanyTimeline(x, y, ts, time);
+      this.drawCompanyTimeline(x, y, ts, t);
     }
   }
 
@@ -1221,6 +1243,99 @@ export class Renderer {
     }
   }
 
+  // 🚪 会议室玻璃门 — 区别于普通玻璃隔断，有门把手+PUSH标识+开关动画
+  private drawMeetingDoor(x: number, y: number, ts: number, t: number, _tx: number, _ty: number): void {
+    const c = this.ctx;
+
+    // 玻璃底色 — 和普通玻璃一致
+    const glassAlpha = 0.15 + Math.sin(t * 0.3) * 0.03;
+    c.fillStyle = `rgba(42,74,106,${glassAlpha})`;
+    c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+
+    // 玻璃高光
+    const glare = Math.sin(t * 0.7 + _tx * 0.2) * 0.5 + 0.5;
+    if (glare > 0.6) {
+      c.fillStyle = `rgba(255,255,255,${(glare - 0.6) * 0.4})`;
+      c.fillRect(x + 3, y + 3, ts / 3, ts / 4);
+    }
+
+    // 门框 — 比普通玻璃更粗的金属边框，区分门和隔断
+    c.strokeStyle = '#7aa0c0';
+    c.lineWidth = 2.5;
+    c.strokeRect(x + 1.5, y + 1.5, ts - 3, ts - 3);
+
+    // 铰链 — 左侧（门是向右开的）
+    c.fillStyle = '#888';
+    c.fillRect(x + 1, y + 3, 3, 4);
+    c.fillRect(x + 1, y + ts - 7, 3, 4);
+
+    // 门把手 — 右侧圆形不锈钢把手
+    const handleX = x + ts - 7;
+    const handleY = y + ts / 2;
+    // 把手底座
+    c.fillStyle = '#c0c0c0';
+    c.beginPath();
+    c.arc(handleX, handleY, 3, 0, Math.PI * 2);
+    c.fill();
+    // 把手中心
+    c.fillStyle = '#e8e8e8';
+    c.beginPath();
+    c.arc(handleX, handleY, 2, 0, Math.PI * 2);
+    c.fill();
+    // 把手高光
+    c.fillStyle = 'rgba(255,255,255,0.6)';
+    c.beginPath();
+    c.arc(handleX - 0.5, handleY - 0.5, 1, 0, Math.PI * 2);
+    c.fill();
+
+    // PUSH 标识 — 门上金色小字，真实办公室标配
+    c.fillStyle = `rgba(251,191,36,${0.5 + Math.sin(t * 1.2) * 0.1})`;
+    c.font = `bold ${Math.max(5, ts - 20)}px monospace`;
+    c.textAlign = 'center';
+    c.fillText('PUSH', x + ts / 2, y + ts / 3 + 2);
+
+    // 磨砂条纹 — 和普通玻璃一致的高度
+    c.fillStyle = 'rgba(200,220,240,0.12)';
+    c.fillRect(x + 2, y + ts / 2 - 2, ts - 4, 4);
+
+    // 开会中指示灯 — 门上方小圆点，有人在时亮红
+    if (this.meetingRoomActive && this.meetingAgentCount >= 2) {
+      const indicatorY = y + 5;
+      const indicatorX = x + ts / 2;
+      // 红灯
+      const redPulse = 0.5 + Math.sin(t * 2) * 0.3;
+      c.fillStyle = `rgba(239,68,68,${redPulse})`;
+      c.beginPath();
+      c.arc(indicatorX, indicatorY, 2.5, 0, Math.PI * 2);
+      c.fill();
+      // 光晕
+      c.fillStyle = `rgba(239,68,68,${redPulse * 0.2})`;
+      c.beginPath();
+      c.arc(indicatorX, indicatorY, 5, 0, Math.PI * 2);
+      c.fill();
+    } else {
+      // 空闲绿灯
+      c.fillStyle = 'rgba(34,197,94,0.4)';
+      c.beginPath();
+      c.arc(x + ts / 2, y + 5, 2.5, 0, Math.PI * 2);
+      c.fill();
+    }
+
+    // 会议室有人时，玻璃上有模糊人影
+    if (this.meetingRoomActive && this.meetingAgentCount >= 2) {
+      c.fillStyle = `rgba(0,0,0,${0.08 + Math.sin(t * 0.5) * 0.02})`;
+      const silhouetteCount = Math.min(this.meetingAgentCount, 4);
+      for (let i = 0; i < silhouetteCount; i++) {
+        const sx = x + 4 + i * ((ts - 8) / silhouetteCount);
+        const sway = Math.sin(t * 0.8 + i) * 1;
+        c.beginPath();
+        c.arc(sx + 3 + sway, y + ts / 3, 3, 0, Math.PI * 2);
+        c.fill();
+        c.fillRect(sx + sway, y + ts / 3 + 3, 6, ts / 3 - 3);
+      }
+    }
+  }
+
   // 📋 会议室白板 — 带议程和便利贴，开会时显示会议主题
   private drawMeetingWhiteboard(x: number, y: number, ts: number, t: number): void {
     const c = this.ctx;
@@ -1270,7 +1385,7 @@ export class Renderer {
     c.fillStyle = '#e8a820';
     c.fillRect(noteX + 4, noteY + 3, 2, 2);
 
-    // 开会时：白板高亮 + 当前议题闪烁
+    // 开会时：白板高亮 + 当前议题闪烁 + ⏱️ 会议计时器
     if (this.meetingRoomActive && this.meetingAgentCount >= 2) {
       // 白板边缘微光
       c.fillStyle = `rgba(74,144,217,${0.1 + Math.sin(t * 2) * 0.05})`;
@@ -1279,6 +1394,55 @@ export class Renderer {
       const currentItem = Math.floor(t * 0.3) % agendaItems.length;
       c.fillStyle = `rgba(231,76,60,${0.3 + Math.sin(t * 3) * 0.15})`;
       c.fillRect(x + 3, y + 8 + currentItem * 5, ts - 6, 4);
+
+      // ⏱️ 会议计时器 — 显示已开会时长，颜色随时间变红（真实打工人痛点！）
+      if (this.meetingStartTime > 0) {
+        const elapsed = t - this.meetingStartTime;
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = Math.floor(elapsed % 60);
+        const timeStr = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+        // 紧急度颜色：<10min 绿色，10-30min 黄色，>30min 红色
+        let timerColor: string;
+        if (minutes < 10) timerColor = '#2ecc71';
+        else if (minutes < 30) timerColor = '#f1c40f';
+        else timerColor = '#e74c3c';
+
+        // 计时器背景
+        const timerY = y + ts - 10;
+        c.fillStyle = 'rgba(0,0,0,0.6)';
+        c.fillRect(x + 2, timerY, ts - 4, 6);
+
+        // 计时文字
+        c.fillStyle = timerColor;
+        c.font = 'bold 4px monospace';
+        c.textAlign = 'center';
+        c.fillText(`⏱️ ${timeStr}`, x + ts / 2, timerY + 5);
+
+        // 超时警告 — 超过 20 分钟闪烁
+        if (minutes >= 20) {
+          const flash = Math.sin(t * 4) > 0;
+          if (flash) {
+            c.fillStyle = 'rgba(231,76,60,0.15)';
+            c.fillRect(x + 1, y + 1, ts - 2, ts - 2);
+          }
+        }
+
+        // 超长会议吐槽 — 超过 45 分钟显示吐槽文字
+        if (minutes >= 45) {
+          const complaints = [
+            '这会还没完？！',
+            '我想回工位...',
+            '已经超时了...',
+            '能结束了吗？',
+          ];
+          const complaint = complaints[Math.floor(t * 0.5) % complaints.length];
+          c.fillStyle = '#e74c3c';
+          c.font = '2px sans-serif';
+          c.textAlign = 'center';
+          c.fillText(complaint, x + ts / 2, timerY - 2);
+        }
+      }
     }
   }
 
@@ -4142,5 +4306,79 @@ export class Renderer {
     const blink = Math.sin(t * 3) > 0;
     c.fillStyle = blink ? '#4ade80' : '#166534';
     c.fillRect(x + ts - 4, y + 3, 2, 2);
+
+    // 📅 Sprint 倒计时 — 真实办公室的迭代节奏
+    const chinaDay = (new Date().getUTCDay() + 8) % 7; // 1=周一...6=周六,0=周日
+    // 假设 Sprint 从周一开始，到周五结束（5 天）
+    const sprintDay = chinaDay >= 1 && chinaDay <= 5 ? chinaDay : 0;
+    const sprintTotal = 5;
+    const sprintProgress = sprintDay > 0 ? sprintDay / sprintTotal : 0;
+
+    // Sprint 进度条（在 KPI 标题下方）
+    if (sprintDay > 0) {
+      const barY = y + 8;
+      const barH = 2;
+      const barX = x + 2;
+      const barW = ts - 4;
+
+      // 进度条底色
+      c.fillStyle = '#2a2a4a';
+      c.fillRect(barX, barY, barW, barH);
+
+      // 进度条填充 — 根据星期几着色
+      const sprintColors = ['#60a5fa', '#4ade80', '#fbbf24', '#f97316', '#e74c3c']; // 周一蓝→周五红
+      c.fillStyle = sprintColors[sprintDay - 1] || '#60a5fa';
+      c.fillRect(barX, barY, barW * sprintProgress, barH);
+
+      // Sprint 文字
+      c.fillStyle = sprintColors[sprintDay - 1] || '#60a5fa';
+      c.font = '2px monospace';
+      c.textAlign = 'right';
+      c.fillText(`Sprint ${sprintDay}/${sprintTotal}`, x + ts - 2, barY + 2);
+
+      // 周五下午：冲刺倒计时闪烁
+      if (sprintDay === 5) {
+        const flash = Math.sin(t * 3) > 0;
+        if (flash) {
+          c.fillStyle = 'rgba(231,76,60,0.2)';
+          c.fillRect(barX, barY, barW, barH);
+        }
+      }
+    }
+  }
+
+  // ☕ 咖啡机排队指示器 — 显示咖啡机忙/排队状态
+  private drawCoffeeQueueIndicator(ts: number, t: number): void {
+    const c = this.ctx;
+    // 咖啡机上方显示排队状态
+    const indicatorX = ts * 13 + ts / 2; // 咖啡机在 x=13
+    const indicatorY = ts * 8; // 咖啡机上方一行
+
+    if (this.coffeeMachineBusy) {
+      // 红色忙碌灯
+      const pulse = 0.5 + Math.sin(t * 2.5) * 0.3;
+      c.fillStyle = `rgba(239,68,68,${pulse})`;
+      c.beginPath();
+      c.arc(indicatorX, indicatorY + ts / 2, 3, 0, Math.PI * 2);
+      c.fill();
+
+      // 排队人数徽章
+      if (this.coffeeQueueLength > 0) {
+        c.fillStyle = 'rgba(0,0,0,0.7)';
+        c.beginPath();
+        c.arc(indicatorX + 10, indicatorY + ts / 2, 7, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = '#fff';
+        c.font = 'bold 7px monospace';
+        c.textAlign = 'center';
+        c.fillText(`${this.coffeeQueueLength}`, indicatorX + 10, indicatorY + ts / 2 + 3);
+      }
+
+      // ☕ 图标
+      c.fillStyle = 'rgba(160,114,74,0.8)';
+      c.font = '10px monospace';
+      c.textAlign = 'center';
+      c.fillText('☕', indicatorX - 12, indicatorY + ts / 2 + 4);
+    }
   }
 }

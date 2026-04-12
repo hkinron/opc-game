@@ -118,7 +118,7 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
     { x: 2, y: 3 }, { x: 5, y: 3 },   // 上排
     { x: 2, y: 5 }, { x: 5, y: 5 },   // 下排
     // ===== 办公区 B (右房间) =====
-    { x: 13, y: 3 }, { x: 16, y: 3 }, // 上排
+    { x: 16, y: 3 }, { x: 18, y: 3 }, // 上排
     { x: 13, y: 5 }, { x: 16, y: 5 }, // 下排
   ],
   furniture: [
@@ -160,7 +160,7 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
 
     // ========================================
     // 办公区 B (右房间) — 装饰
-    { type: 'window', x: 12, y: 1 },
+    { type: 'window', x: 11, y: 1 },
     { type: 'bookshelf', x: 16, y: 1 }, { type: 'bookshelf', x: 17, y: 1 },
     { type: 'plant', x: 12, y: 4 },
     { type: 'lamp', x: 14, y: 1 },
@@ -168,12 +168,11 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
     { type: 'clock', x: 18, y: 1 },
 
     // 办公区 B — 桌面物品
-    { type: 'deskphoto', x: 14, y: 3 },
-    { type: 'deskplant', x: 13, y: 2 },
-    { type: 'deskcup', x: 17, y: 3 },
+    { type: 'deskphoto', x: 17, y: 3 },
+    { type: 'deskplant', x: 15, y: 2 },
+    { type: 'deskcup', x: 17, y: 5 },
     { type: 'deskplant', x: 16, y: 2 },
-    { type: 'deskcup', x: 14, y: 5 },
-    { type: 'deskphoto', x: 17, y: 5 },
+    { type: 'deskphoto', x: 18, y: 5 },
 
     // ========================================
     // 底部功能区 (y=9-11)
@@ -213,6 +212,34 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
     { type: 'signpost', x: 10, y: 11 },
     // 🌿 入口绿植
     { type: 'plant', x: 5, y: 11 }, { type: 'plant', x: 16, y: 11 },
+
+    // 🏓 乒乓球桌 — 休息区经典配置，打工人下午摸鱼圣地
+    // 放在休息区沙发旁边 (1,7)，旁边有足够空间走动
+    { type: 'pingpong', x: 1, y: 6 },
+    // 🪑 茶水间吧台椅 — 打工人接完咖啡坐会儿歇脚的地方
+    // 茶水间 y=9 是设备行，y=10 前面放凳子
+    { type: 'barstool', x: 13, y: 11 },
+    { type: 'barstool', x: 14, y: 11 },
+    { type: 'barstool', x: 15, y: 10 },
+
+    // ========================================
+    // 📋 会议室白板 — 挂在会议室墙上的议程板，开会时显示会议计时器
+    // 放在会议室右侧 (17,2)，靠近会议桌但不会挡住入口
+    { type: 'meetingwhiteboard', x: 17, y: 2 },
+
+    // ========================================
+    // 🏢 会议室玻璃隔断 — 用半透明玻璃围出会议室空间
+    // 会议室区域: 会议桌在 x=13-15, y=1-2
+    // 玻璃是 walkable 的，不会阻挡通行，但有半透明视觉效果
+    // 左侧玻璃隔断 (x=12，分隔办公区和会议室)
+    { type: 'meetingglass', x: 12, y: 1 },
+    { type: 'meetingglass', x: 12, y: 2 },
+    // 🚪 会议室玻璃门 — 入口 (12,3)，有门把手和 PUSH 标识，带开关动画
+    { type: 'meetingdoor', x: 12, y: 3 },
+    // 底部玻璃 (y=3，会议桌下方)
+    { type: 'meetingglass', x: 13, y: 3 },
+    { type: 'meetingglass', x: 14, y: 3 },
+    { type: 'meetingglass', x: 15, y: 3 },
   ],
 };
 

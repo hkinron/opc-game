@@ -61,6 +61,8 @@ export enum TileType {
   CeilingLight = 55,
   // 🖨️ 打印机卡纸 — 打印机故障状态，亮红灯，吐出纸张
   PrinterJam = 56,
+  // 🚪 会议室玻璃门 — 区别于普通玻璃隔断，有门把手+PUSH标识+开关动画
+  MeetingDoor = 57,
 }
 
 export enum AgentState {
