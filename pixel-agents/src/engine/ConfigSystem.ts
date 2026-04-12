@@ -3,7 +3,7 @@
 // ============================================
 // 办公室布局设计 (参考 pablodelucca/pixel-agents + 设计原则)
 // 设计原则: 空间层次 / 呼吸感 / 动线清晰 / 色彩统一
-// 尺寸: 20×11 — 参考项目默认尺寸
+// 尺寸: 20×13 — 增加高度，确保底部功能区不被外墙覆盖
 
 export interface ThemeColors {
   background: string;
@@ -27,7 +27,6 @@ export interface ThemeColors {
   statusbarBorder: string;
 }
 
-// 暖色调地板 (参考项目配色: 左房米色 #c4a882, 右房棕色 #8a7058)
 export const DEFAULT_THEME: ThemeColors = {
   background: '#2c2016',
   wall: '#3a3a52',
@@ -82,28 +81,26 @@ export const THEMES: Record<string, ThemeColors> = {
 // Layout Configurations
 // ============================================
 //
-// 📐 20×11 专业办公室 — 两房间 + 中央走廊
+// 📐 20×13 专业办公室 — 两房间 + 完整入口区
 //
-// 设计思路 (参考 pablodelucca/pixel-agents):
-// 1. 两房间分隔 — 中间隔墙 + 门洞，真实感
-// 2. 暖色地板 — 左房米色(#c4a882) 右房棕色(#8a7058)
-// 3. 工位对称 — 每间4工位，间距均匀
-// 4. 底部功能区 — 休息区 / 茶水间 / 卫生间
-// 5. 入口区域 — 电梯 + 前台
+// 关键修复: 之前 height=11，y=10 是最底行 = 外墙，
+// 前台/电梯/卫生间全放在 y=10，被墙覆盖了！
+// 现在 height=13，家具放 y=11，y=12 才是底墙。
 //
 // 布局平面图:
-// ┌──────────────────────────────────────────┐
-// │ 白板 白板 │ 窗  │ 窗 │ 书架 书架 │      │ y=1
-// │          │     │    │          │       │
-// │ 💻  💻   │ 🪴  │ 🪴 │  💻  💻  │ 时钟  │ y=3 工位上排
-// │          │     │    │          │       │
-// │ 💻  💻   │     │    │  💻  💻  │       │ y=5 工位下排
-// │          │     │    │          │       │
-// ├── 隔墙 ──┼──🚪─┼────┼─── 隔墙 ─┤       │ y=7 隔墙(带门)
-// │          │     │    │          │       │
-// │ 🛋️🛋️🛋️  │走廊 │    │ ☕🧊📦   │       │ y=9 休息区+茶水间
-// │ 前台    │电梯 │    │ 快递柜   │ 🚻    │ y=10 入口区
-// └─────────┴─────┴────┴──────────┴───────┘
+// ┌───────────────────────────────────────────────┐
+// │ 白板 白板 │  🪴  │  🪴  │ 书架 书架 │ 时钟  │  y=1
+// │                                             │
+// │ 💻  💻   │     │      │  💻  💻   │        │  y=3
+// │                                             │
+// │ 💻  💻   │     │      │  💻  💻   │        │  y=5
+// │                                             │
+// ├── 隔墙 ──┼──🚪─┼──────┼─── 隔墙 ──┤        │  y=7
+// │                                             │
+// │ 🛋️🛋️🛋️  │走廊 │      │ ☕🧊📦    │  🚻   │  y=9
+// │                                             │
+// │ 前台 🏢 │🛗电梯│      │ 📦快递柜  │        │  y=11 入口区
+// └─────────┴──────┴──────┴───────────┴────────┘  y=12 底墙
 
 export interface OfficeLayout {
   name: string;
@@ -115,7 +112,7 @@ export interface OfficeLayout {
 
 export const DEFAULT_LAYOUT: OfficeLayout = {
   name: '双房间办公室',
-  width: 20, height: 11,
+  width: 20, height: 13,
   desks: [
     // ===== 办公区 A (左房间) =====
     { x: 2, y: 3 }, { x: 5, y: 3 },   // 上排
@@ -139,6 +136,7 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
     { type: 'door', x: 9, y: 8 },
     // 下段 (y=9-10)
     { type: 'poster', x: 9, y: 9 },
+    { type: 'poster', x: 9, y: 10 },
 
     // ========================================
     // 办公区 A (左房间) — 装饰
@@ -149,14 +147,16 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
     { type: 'lamp', x: 3, y: 4 },
     // 打印机 (靠墙)
     { type: 'printer', x: 7, y: 5 },
+    // 🧯 灭火器 — 左房间隔墙边 (1,7)，真实办公室安全标配
+    { type: 'fireextinguisher', x: 1, y: 7 },
 
-    // 办公区 A — 桌面物品 (每个工位个性化)
-    { type: 'deskcup', x: 3, y: 3 },     // 工位(2,3) 水杯
-    { type: 'deskplant', x: 2, y: 2 },   // 工位(2,3) 盆栽
-    { type: 'deskphoto', x: 6, y: 3 },   // 工位(5,3) 相框
-    { type: 'deskplant', x: 5, y: 2 },   // 工位(5,3) 盆栽
-    { type: 'deskcup', x: 3, y: 5 },     // 工位(2,5) 水杯
-    { type: 'deskphoto', x: 6, y: 5 },   // 工位(5,5) 相框
+    // 办公区 A — 桌面物品
+    { type: 'deskcup', x: 3, y: 3 },
+    { type: 'deskplant', x: 2, y: 2 },
+    { type: 'deskphoto', x: 6, y: 3 },
+    { type: 'deskplant', x: 5, y: 2 },
+    { type: 'deskcup', x: 3, y: 5 },
+    { type: 'deskphoto', x: 6, y: 5 },
 
     // ========================================
     // 办公区 B (右房间) — 装饰
@@ -168,24 +168,19 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
     { type: 'clock', x: 18, y: 1 },
 
     // 办公区 B — 桌面物品
-    { type: 'deskphoto', x: 14, y: 3 },  // 工位(13,3) 相框
-    { type: 'deskplant', x: 13, y: 2 },  // 工位(13,3) 盆栽
-    { type: 'deskcup', x: 17, y: 3 },    // 工位(16,3) 水杯
-    { type: 'deskplant', x: 16, y: 2 },  // 工位(16,3) 盆栽
-    { type: 'deskcup', x: 14, y: 5 },    // 工位(13,5) 水杯
-    { type: 'deskphoto', x: 17, y: 5 },  // 工位(16,5) 相框
+    { type: 'deskphoto', x: 14, y: 3 },
+    { type: 'deskplant', x: 13, y: 2 },
+    { type: 'deskcup', x: 17, y: 3 },
+    { type: 'deskplant', x: 16, y: 2 },
+    { type: 'deskcup', x: 14, y: 5 },
+    { type: 'deskphoto', x: 17, y: 5 },
 
     // ========================================
-    // 底部功能区 (y=9-10)
+    // 底部功能区 (y=9-11)
     // 🛋️ 休息区 (左下)
     { type: 'couch', x: 2, y: 9 }, { type: 'couch', x: 3, y: 9 }, { type: 'couch', x: 4, y: 9 },
-    { type: 'couch', x: 2, y: 10 }, { type: 'couch', x: 3, y: 10 },
     { type: 'plant', x: 1, y: 9 }, { type: 'plant', x: 5, y: 9 },
-
-    // 走廊地毯
-    { type: 'carpet', x: 7, y: 9 }, { type: 'carpet', x: 8, y: 9 },
-    { type: 'carpet', x: 7, y: 10 }, { type: 'carpet', x: 8, y: 10 },
-    // 书架 (走廊旁)
+    // 书架 (休息区旁)
     { type: 'bookshelf', x: 6, y: 9 },
 
     // ☕ 茶水间 (右中)
@@ -204,13 +199,15 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
     { type: 'restroom', x: 17, y: 10 }, { type: 'restroom', x: 18, y: 10 },
 
     // ========================================
-    // 入口区域 (y=10 底部)
+    // 入口区域 (y=11 — 倒数第二行，确保不被底墙覆盖)
     // 🏢 前台 (左侧)
-    { type: 'receptiondesk', x: 1, y: 10 },
+    { type: 'receptiondesk', x: 2, y: 11 }, { type: 'receptiondesk', x: 3, y: 11 },
     // 🛗 电梯 (中央偏左)
-    { type: 'elevator', x: 7, y: 10 }, { type: 'elevator', x: 8, y: 10 },
+    { type: 'elevator', x: 7, y: 11 }, { type: 'elevator', x: 8, y: 11 },
     // 🪧 导向标识 (电梯旁)
-    { type: 'signpost', x: 10, y: 10 },
+    { type: 'signpost', x: 10, y: 11 },
+    // 🌿 入口绿植
+    { type: 'plant', x: 5, y: 11 }, { type: 'plant', x: 16, y: 11 },
   ],
 };
 
