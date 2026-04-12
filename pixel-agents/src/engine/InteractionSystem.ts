@@ -155,7 +155,7 @@ const OBJECT_INTERACTIONS: Record<string, InteractableObject[]> = {
     nearbyTile: { x: 10, y: 9 },
   }],
   phonebooth: [{
-    type: 'phonebooth', x: 5, y: 10, label: '电话亭', emoji: '📞',
+    type: 'phonebooth', x: 6, y: 8, label: '电话亭', emoji: '📞',
     actionText: '接电话中...', actionDuration: 8, actionState: AgentState.Waiting,
     nearbyTile: { x: 5, y: 9 },
   }],
@@ -170,7 +170,7 @@ const OBJECT_INTERACTIONS: Record<string, InteractableObject[]> = {
     nearbyTile: { x: 3, y: 2 },
   }],
   fireextinguisher: [{
-    type: 'fireextinguisher', x: 10, y: 6, label: '灭火器', emoji: '🧯',
+    type: 'fireextinguisher', x: 1, y: 7, label: '灭火器', emoji: '🧯',
     actionText: '安全检查中...', actionDuration: 3, actionState: AgentState.Reading,
     nearbyTile: { x: 9, y: 6 },
   }],
@@ -180,7 +180,7 @@ const OBJECT_INTERACTIONS: Record<string, InteractableObject[]> = {
     nearbyTile: { x: 8, y: 7 },
   }],
   walltv: [{
-    type: 'walltv', x: 3, y: 7, label: '壁挂电视', emoji: '📺',
+    type: 'walltv', x: 3, y: 8, label: '壁挂电视', emoji: '📺',
     actionText: '摸鱼看电视...', actionDuration: 8, actionState: AgentState.Idle,
     nearbyTile: { x: 3, y: 8 },
   }],

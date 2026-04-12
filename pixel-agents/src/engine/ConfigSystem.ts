@@ -177,11 +177,16 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
 
     // ========================================
     // 底部功能区 (y=9-11)
-    // 🛋️ 休息区 (左下)
+    // 🛋️ 休息区 (左下) — 沙发 + 电视 + 绿植，真实办公室休息区
     { type: 'couch', x: 2, y: 9 }, { type: 'couch', x: 3, y: 9 }, { type: 'couch', x: 4, y: 9 },
     { type: 'plant', x: 1, y: 9 }, { type: 'plant', x: 5, y: 9 },
+    // 📺 壁挂电视 — 沙发正上方的墙上 (3,8)，摸鱼时看电视新闻/屏保
+    { type: 'walltv', x: 3, y: 8 },
     // 书架 (休息区旁)
     { type: 'bookshelf', x: 6, y: 9 },
+
+    // 📞 电话亭 — 走廊里的玻璃小隔间 (6,8)，打电话/面试专用
+    { type: 'phonebooth', x: 6, y: 8 },
 
     // ☕ 茶水间 (右中)
     { type: 'coffee', x: 13, y: 9 },

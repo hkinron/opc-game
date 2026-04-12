@@ -823,7 +823,7 @@ export class Game {
           '📞 "宝宝乖，爸爸在加班"',
           '📞 "物业说漏水了？！"',
         ];
-        availableAgent.walkTo(5, 9, this.tileMap);
+        availableAgent.walkTo(6, 8, this.tileMap);
         availableAgent.speechBubble = phoneCalls[Math.floor(Math.random() * phoneCalls.length)];
         availableAgent.speechTimer = 10;
         setTimeout(() => {
@@ -1702,7 +1702,7 @@ export class Game {
       { x: 6, y: 8, msg: '💬 串个门...' },
       // 新增：卫生间 & 导向标识 & 售货机 & 电话亭
       { x: 2, y: 6, msg: '🚻 上个厕所...' }, { x: 9, y: 7, msg: '🪧 看看指示牌...' },
-      { x: 10, y: 9, msg: '🥤 售货机买瓶水...' }, { x: 5, y: 9, msg: '📞 接个电话...' },
+      { x: 10, y: 9, msg: '🥤 售货机买瓶水...' }, { x: 6, y: 8, msg: '📞 电话亭打电话...' },
       // 🏓 乒乓球桌 — 打工人的快乐源泉
       { x: 6, y: 9, msg: '🏓 来一局乒乓球！' },
       // 📺 休息区看电视 — 摸鱼时看电视新闻/屏保
