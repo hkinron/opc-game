@@ -140,6 +140,16 @@ export class Game {
     { x: 11, y: 9 }, // 排队3号位
   ];
   private coffeeQueueGossipCooldown = 0; // 排队闲聊冷却
+  // 🍱 微波炉排队系统 — 午餐时间热饭要排队，真实办公室经典场景
+  private microwaveBusy = false; // 微波炉是否正在被使用
+  private microwaveUser: string | null = null; // 正在热饭的人
+  private microwaveTimer: number = 0; // 当前用户剩余时间（秒）
+  private microwaveQueue: string[] = []; // 排队队列（agent name）
+  private microwaveQueueSpots = [ // 排队站位 — 微波炉在 (15,9)，两侧等待
+    { x: 14, y: 8 }, // 排队1号位（微波炉左边）
+    { x: 16, y: 8 }, // 排队2号位（微波炉右边）
+  ];
+  private microwaveQueueGossipCooldown = 0; // 排队闲聊冷却
 
   constructor(canvas: HTMLCanvasElement, statusBar: HTMLElement, tooltip: HTMLElement, options: GameOptions = {}) {
     this.canvas = canvas; this.statusBar = statusBar; this.tooltip = tooltip;
@@ -275,6 +285,9 @@ export class Game {
     this.checkBarStoolGossip();
     this.updateCoffeeMachine(dt); // ☕ 咖啡机排队状态更新
     this.renderer.setCoffeeQueueState(this.coffeeMachineBusy, this.coffeeQueue.length);
+    this.updateMicrowaveQueue(dt); // 🍱 微波炉排队状态更新
+    this.renderer.setMicrowaveQueueState(this.microwaveBusy, this.microwaveQueue.length);
+    this.checkElevatorWaiting(chinaHour); // 🛗 电梯等梯行为
     this.checkMeetingRoom();
 
     // 💻 收集正在打字的工位，传给 Renderer 做显示器发光效果
@@ -911,6 +924,14 @@ export class Game {
         } else if (rand < 0.25) {
           agent.speechBubble = '😋 吃饭去了~';
           agent.speechTimer = 3;
+        }
+      }
+
+      // 🍱 午休时间热饭 — 自带饭的 agent 去微波炉加热
+      for (const agent of this.agents) {
+        if (agent.state === AgentState.Walking || agent.isAbsent) continue;
+        if (agent.state === AgentState.Idle && Math.random() < 0.06) {
+          this.tryUseMicrowave(agent);
         }
       }
     }
@@ -2251,6 +2272,296 @@ export class Game {
     // 冷却计时
     if (this.coffeeQueueGossipCooldown > 0) {
       this.coffeeQueueGossipCooldown -= deltaTime;
+    }
+  }
+
+  // 🍱 微波炉排队系统 — 午餐时间热饭要排队，真实办公室经典场景
+  private tryUseMicrowave(agent: any): void {
+    const microwaveX = 15; // 微波炉位置
+    const microwaveY = 9;
+
+    if (!this.microwaveBusy) {
+      // 微波炉空闲，直接使用
+      this.microwaveBusy = true;
+      this.microwaveUser = agent.config.name;
+      this.microwaveTimer = 5 + Math.random() * 4; // 5-9秒热饭时间
+
+      const useMessages = [
+        '🍱 热个饭…今天带了红烧肉！',
+        '🍛 加热咖喱饭，满屋飘香～',
+        '🥡 昨天剩的炒饭热一下继续吃',
+        '🍜 泡面三分钟，打工人标配',
+        '🥘 我妈做的菜，微波炉叮一下就好',
+        '🍲 热个汤，冬天暖胃…',
+      ];
+      agent.walkTo(microwaveX, microwaveY + 1, this.tileMap);
+      agent.speechBubble = useMessages[Math.floor(Math.random() * useMessages.length)];
+      agent.speechTimer = 4;
+    } else if (this.microwaveQueue.length < this.microwaveQueueSpots.length) {
+      // 微波炉忙，加入排队
+      const spotIndex = this.microwaveQueue.length;
+      const spot = this.microwaveQueueSpots[spotIndex];
+      this.microwaveQueue.push(agent.config.name);
+
+      const queueMessages = [
+        '🍱 前面还有人？排个队等热饭…',
+        '🍱 等我前面的那位热完…',
+        '🍱 排队中，闻着别人的饭香饿了😤',
+        '🍱 不急不急，正好刷会儿手机',
+      ];
+      agent.walkTo(spot.x, spot.y, this.tileMap);
+      agent.speechBubble = queueMessages[Math.floor(Math.random() * queueMessages.length)];
+      agent.speechTimer = 4;
+
+      // 排队闲聊 — 如果前面还有人
+      if (this.microwaveQueue.length >= 2 && this.microwaveQueueGossipCooldown <= 0) {
+        const gossipPairs = [
+          { a: '你带的什么好吃的？', b: '我妈做的红烧肉，香吧 😋' },
+          { a: '这微波炉好慢啊', b: '中午大家都热饭，排队正常 🍱' },
+          { a: '好饿啊…等不及了', b: '忍忍，马上轮到你 😅' },
+          { a: '今天食堂的菜太难吃了', b: '所以我自带了，明智吧 💪' },
+          { a: '你每天带饭吗？', b: '对啊，省钱又健康 🥗' },
+          { a: '闻到香味了…谁的？', b: '我的我的，不好意思 😂' },
+        ];
+        const gossip = gossipPairs[Math.floor(Math.random() * gossipPairs.length)];
+        const firstInQueue = this.agents.find(a => a.config.name === this.microwaveQueue[0]);
+        const secondInQueue = this.agents.find(a => a.config.name === this.microwaveQueue[1]);
+        if (firstInQueue && secondInQueue) {
+          firstInQueue.speechBubble = gossip.a;
+          firstInQueue.speechTimer = 4;
+          setTimeout(() => {
+            if (secondInQueue.state !== AgentState.Walking) {
+              secondInQueue.speechBubble = gossip.b;
+              secondInQueue.speechTimer = 4;
+            }
+          }, 2000);
+          this.microwaveQueueGossipCooldown = 30;
+        }
+      }
+    } else {
+      // 队列满了，放弃
+      if (Math.random() < 0.3) {
+        agent.speechBubble = '🍱 排队太长了，算了吃冷饭吧…';
+        agent.speechTimer = 3;
+      }
+    }
+  }
+
+  // 🍱 更新微波炉状态
+  private updateMicrowaveQueue(deltaTime: number): void {
+    if (this.microwaveBusy && this.microwaveUser) {
+      this.microwaveTimer -= deltaTime;
+
+      if (this.microwaveTimer <= 0) {
+        // 当前用户热完饭
+        const user = this.agents.find(a => a.config.name === this.microwaveUser);
+        if (user && user.state !== AgentState.Walking) {
+          user.setState(AgentState.Waiting);
+          const doneMessages = [
+            '🍱 叮！热好了！开吃！',
+            '🍛 香喷喷的，满足～',
+            '🥡 微波炉美食，打工人最爱！',
+            '🍜 三分钟搞定午餐，高效！',
+          ];
+          user.speechBubble = doneMessages[Math.floor(Math.random() * doneMessages.length)];
+          user.speechTimer = 4;
+
+          setTimeout(() => {
+            if (user.state !== AgentState.Walking) {
+              // 回工位或去午餐区吃
+              user.walkTo(user.config.deskX, user.config.deskY + 1, this.tileMap);
+              setTimeout(() => {
+                if (user.state !== AgentState.Walking) {
+                  user.setState(AgentState.Idle);
+                  user.speechBubble = '😋 开动了！';
+                  user.speechTimer = 6;
+                }
+              }, 3000);
+            }
+          }, 2000);
+        }
+
+        this.microwaveBusy = false;
+        this.microwaveUser = null;
+
+        // 下一个排队的人上前
+        if (this.microwaveQueue.length > 0) {
+          const next = this.microwaveQueue.shift()!;
+          const nextAgent = this.agents.find(a => a.config.name === next);
+          if (nextAgent) {
+            this.microwaveBusy = true;
+            this.microwaveUser = nextAgent.config.name;
+            this.microwaveTimer = 5 + Math.random() * 4;
+
+            nextAgent.walkTo(15, 10, this.tileMap); // 走到微波炉前
+            nextAgent.speechBubble = '🍱 轮到我了！';
+            nextAgent.speechTimer = 3;
+
+            // 后面的人往前挪
+            this.microwaveQueue.forEach((queued, i) => {
+              const spot = this.microwaveQueueSpots[i];
+              const queuedAgent = this.agents.find(a => a.config.name === queued);
+              if (queuedAgent) {
+                queuedAgent.walkTo(spot.x, spot.y, this.tileMap);
+              }
+            });
+          }
+        }
+      }
+    }
+
+    // 冷却计时
+    if (this.microwaveQueueGossipCooldown > 0) {
+      this.microwaveQueueGossipCooldown -= deltaTime;
+    }
+  }
+
+  // 🛗 电梯等梯行为 — 上下班高峰期 agents 聚集电梯口等电梯
+  private checkElevatorWaiting(chinaHour: number): void {
+    // 早高峰 (8:00-10:00) 和晚高峰 (17:00-19:00)
+    const isMorningRush = chinaHour >= 0 && chinaHour < 2; // UTC 0-2 = 中国 8-10
+    const isEveningRush = chinaHour >= 9 && chinaHour < 11; // UTC 9-11 = 中国 17-19
+    const isRushHour = isMorningRush || isEveningRush;
+
+    if (!isRushHour) {
+      // 非高峰期，清除等电梯状态
+      this.elevatorWaiting.clear();
+      return;
+    }
+
+    // 空闲的 agent 有概率去电梯口等
+    const isWeekend = [0, 6].includes(new Date().getUTCDay());
+    if (isWeekend) return;
+
+    for (const agent of this.agents) {
+      if (agent.isAbsent || agent.hasLeftOffice) continue;
+      if (this.elevatorWaiting.has(agent.config.name)) continue;
+      if (agent.state === AgentState.Walking) continue;
+
+      // 空闲时有一定概率去等电梯
+      const rushChance = isMorningRush ? 0.04 : 0.06;
+      if ((agent.state === AgentState.Idle || agent.state === AgentState.摸鱼中) && Math.random() < rushChance) {
+        this.elevatorWaiting.add(agent.config.name);
+
+        // 电梯口位置 (7-8, 11)
+        const elevatorSpots = [
+          { x: 6, y: 11, msg: '🛗 等电梯中…' },
+          { x: 9, y: 11, msg: '🛗 电梯怎么还不来…' },
+          { x: 6, y: 10, msg: '🛗 按了上行键，等着…' },
+          { x: 9, y: 10, msg: '🛗 今天电梯好慢啊' },
+        ];
+        const spot = elevatorSpots[Math.floor(Math.random() * elevatorSpots.length)];
+
+        if (this.tileMap.isWalkable(spot.x, spot.y)) {
+          agent.walkTo(spot.x, spot.y, this.tileMap);
+
+          if (isMorningRush) {
+            const morningMsgs = [
+              '🛗 早高峰电梯难等啊…',
+              '😴 还没睡醒就要上班了…',
+              '☕ 早上不喝咖啡活不了…',
+              '🏃 差点迟到，电梯快点来！',
+              '🛗 今天电梯怎么这么慢！',
+              '😫 周一早上不想上班…',
+            ];
+            agent.speechBubble = morningMsgs[Math.floor(Math.random() * morningMsgs.length)];
+          } else {
+            const eveningMsgs = [
+              '🛗 终于下班了！冲！',
+              '🎉 终于可以回家了！',
+              '🏃 今天一定要赶上那班地铁！',
+              '🛗 电梯快来快来…',
+              '😮‍💨 终于可以走了，累死了',
+              '🍜 下班去吃顿好的！',
+            ];
+            agent.speechBubble = eveningMsgs[Math.floor(Math.random() * eveningMsgs.length)];
+          }
+          agent.speechTimer = 5;
+        }
+      }
+    }
+
+    // 等电梯的 agent 之间闲聊
+    const waitingAgents = this.agents.filter(a =>
+      this.elevatorWaiting.has(a.config.name) &&
+      a.state !== AgentState.Walking &&
+      !a.isAbsent &&
+      !a.hasLeftOffice
+    );
+
+    if (waitingAgents.length >= 2 && Math.random() < 0.08) {
+      const pairKey = waitingAgents.slice(0, 2).map(a => a.config.name).sort().join('-');
+      const cooldownKey = `elevator-${pairKey}`;
+      const now = Date.now();
+      const cooldown = this.gossipCooldown.get(cooldownKey) || 0;
+
+      if (now > cooldown) {
+        const [a, b] = waitingAgents;
+        const isMorning = chinaHour >= 0 && chinaHour < 2;
+
+        let gossip;
+        if (isMorning) {
+          const morningGossips = [
+            { a: '你吃早饭了吗？', b: '没呢，到公司再吃 🥐' },
+            { a: '今天好困啊', b: '我也是，昨晚又熬夜了 😴' },
+            { a: '这电梯是蜗牛开的吗？', b: '早高峰都这样，习惯就好 🐌' },
+            { a: '你今天看起来没睡醒', b: '谁不是呢…周一综合征 ☕' },
+            { a: '你觉得今天会加班吗？', b: '别说了，我不想听 😰' },
+            { a: '地铁上人太多了', b: '我都快被挤成照片了 📸' },
+          ];
+          gossip = morningGossips[Math.floor(Math.random() * morningGossips.length)];
+        } else {
+          const eveningGossips = [
+            { a: '今天终于要走了！', b: '是啊，快饿扁了 🍜' },
+            { a: '你晚上干嘛去？', b: '回家躺着，哪儿也不想去 🛌' },
+            { a: '明天早上几点到？', b: '卡点到，9:29 打卡 😎' },
+            { a: '今天工作还顺利吗？', b: '别提了，需求又改了 😮‍💨' },
+            { a: '周末有什么安排？', b: '补觉！谁也别叫我 💤' },
+            { a: '一起走吗？', b: '好啊，路上聊 🚶' },
+          ];
+          gossip = eveningGossips[Math.floor(Math.random() * eveningGossips.length)];
+        }
+
+        a.speechBubble = `${b.config.name}: "${gossip.a}"`;
+        a.speechTimer = 5;
+        a.facing = a.x < b.x ? 'right' : 'left';
+
+        setTimeout(() => {
+          if (b.state !== AgentState.Walking) {
+            b.speechBubble = `${a.config.name}: "${gossip.b}"`;
+            b.speechTimer = 5;
+            b.facing = b.x < a.x ? 'right' : 'left';
+          }
+        }, 2000);
+
+        this.gossipCooldown.set(cooldownKey, now + 50000);
+      }
+    }
+
+    // 等电梯一段时间后，agent 回到工位（或真的离开）
+    for (const agent of waitingAgents) {
+      if (agent.state !== AgentState.Walking && Math.random() < 0.02) {
+        this.elevatorWaiting.delete(agent.config.name);
+        if (isEveningRush && Math.random() < 0.3) {
+          // 下班了，离开办公室
+          agent.hasLeftOffice = true;
+          agent.speechBubble = '👋 走了走了，明天见！';
+          agent.speechTimer = 4;
+          setTimeout(() => {
+            if (agent.hasLeftOffice) {
+              agent.walkTo(8, 12, this.tileMap);
+              setTimeout(() => {
+                if (agent.hasLeftOffice) { agent.x = -10; agent.y = -10; }
+              }, 4000);
+            }
+          }, 3000);
+        } else {
+          // 不等了，回工位
+          agent.walkTo(agent.config.deskX, agent.config.deskY + 1, this.tileMap);
+          agent.speechBubble = '🛗 电梯太慢了，回去继续摸鱼…';
+          agent.speechTimer = 4;
+        }
+      }
     }
   }
 

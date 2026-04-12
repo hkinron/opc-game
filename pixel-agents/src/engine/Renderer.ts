@@ -45,6 +45,9 @@ export class Renderer {
   // ☕ 咖啡机排队可视化
   private coffeeMachineBusy = false;
   private coffeeQueueLength = 0;
+  // 🍱 微波炉排队可视化
+  private microwaveBusy = false;
+  private microwaveQueueLength = 0;
   private typingDesks: Set<string> = new Set(); // 💻 正在打字的工位 "x,y"
   private idleDesks: Set<string> = new Set(); // 🖥️ 无人使用的工位 — 显示器关闭/待机状态
   private weekendOvertimeDesks: Set<string> = new Set(); // 🌙 周末加班工位 — 非加班工位显示器关闭，办公室灯光调暗
@@ -96,6 +99,7 @@ export class Renderer {
   setWeekendOvertimeDesks(desks: Set<string>): void { this.weekendOvertimeDesks = desks; }
   // ☕ 咖啡机排队状态
   setCoffeeQueueState(busy: boolean, queueLen: number): void { this.coffeeMachineBusy = busy; this.coffeeQueueLength = queueLen; }
+  setMicrowaveQueueState(busy: boolean, queueLen: number): void { this.microwaveBusy = busy; this.microwaveQueueLength = queueLen; }
 
   triggerEvent(msg: string, duration: number = 15): void {
     const colors = ['#e74c3c', '#f39c12', '#2ecc71', '#3498db', '#9b59b6', '#e67e22'];
@@ -231,6 +235,11 @@ export class Renderer {
     // ☕ 咖啡机排队指示器 — 有人在排队时显示排队人数
     if (this.coffeeMachineBusy || this.coffeeQueueLength > 0) {
       this.drawCoffeeQueueIndicator(ts, time);
+    }
+
+    // 🍱 微波炉排队指示器 — 午休时间热饭排队时显示
+    if (this.microwaveBusy || this.microwaveQueueLength > 0) {
+      this.drawMicrowaveQueueIndicator(ts, time);
     }
 
     // Kanban overlay
@@ -4379,6 +4388,41 @@ export class Renderer {
       c.font = '10px monospace';
       c.textAlign = 'center';
       c.fillText('☕', indicatorX - 12, indicatorY + ts / 2 + 4);
+    }
+  }
+
+  // 🍱 微波炉排队指示器 — 午休时间热饭排队时显示排队状态
+  private drawMicrowaveQueueIndicator(ts: number, t: number): void {
+    const c = this.ctx;
+    // 微波炉上方显示排队状态 — 微波炉在 x=15, y=9
+    const indicatorX = ts * 15 + ts / 2;
+    const indicatorY = ts * 8; // 微波炉上方一行
+
+    if (this.microwaveBusy) {
+      // 橙色忙碌灯（区别于咖啡机的红色）
+      const pulse = 0.5 + Math.sin(t * 2.0) * 0.3;
+      c.fillStyle = `rgba(251,146,60,${pulse})`;
+      c.beginPath();
+      c.arc(indicatorX, indicatorY + ts / 2, 3, 0, Math.PI * 2);
+      c.fill();
+
+      // 排队人数徽章
+      if (this.microwaveQueueLength > 0) {
+        c.fillStyle = 'rgba(0,0,0,0.7)';
+        c.beginPath();
+        c.arc(indicatorX + 10, indicatorY + ts / 2, 7, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = '#fff';
+        c.font = 'bold 7px monospace';
+        c.textAlign = 'center';
+        c.fillText(`${this.microwaveQueueLength}`, indicatorX + 10, indicatorY + ts / 2 + 3);
+      }
+
+      // 🍱 便当图标
+      c.fillStyle = 'rgba(251,146,60,0.8)';
+      c.font = '10px monospace';
+      c.textAlign = 'center';
+      c.fillText('🍱', indicatorX - 12, indicatorY + ts / 2 + 4);
     }
   }
 }

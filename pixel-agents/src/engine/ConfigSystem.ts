@@ -148,7 +148,7 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
     // 打印机 (靠墙)
     { type: 'printer', x: 7, y: 5 },
     // 🧯 灭火器 — 左房间隔墙边 (1,7)，真实办公室安全标配
-    { type: 'fireextinguisher', x: 1, y: 7 },
+    { type: 'fireextinguisher', x: 1, y: 8 },
 
     // 办公区 A — 桌面物品
     { type: 'deskcup', x: 3, y: 3 },
@@ -164,7 +164,7 @@ export const DEFAULT_LAYOUT: OfficeLayout = {
     { type: 'bookshelf', x: 16, y: 1 }, { type: 'bookshelf', x: 17, y: 1 },
     { type: 'plant', x: 12, y: 4 },
     { type: 'lamp', x: 14, y: 1 },
-    { type: 'lamp', x: 14, y: 4 },
+    { type: 'lamp', x: 14, y: 5 },
     { type: 'clock', x: 18, y: 1 },
 
     // 办公区 B — 桌面物品
